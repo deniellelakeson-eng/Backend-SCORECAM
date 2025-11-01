@@ -1,5 +1,6 @@
 # HerbaScan Backend Dockerfile
 # For deployment to Railway, Render, or other cloud platforms
+# Fix for Debian Trixie compatibility
 
 FROM python:3.10-slim
 
