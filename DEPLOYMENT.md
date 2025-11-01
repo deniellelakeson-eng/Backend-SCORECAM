@@ -188,11 +188,14 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
 
 **Error: "Misordered multipart fields; files should follow 'map'"**
 - ❌ **Problem**: Railway proxy has issues with Postman's multipart format
-- ✅ **Solution**: Use `curl` instead of Postman:
-  ```bash
-  curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
-    -F "file=@path/to/your/image.jpg"
-  ```
+- ✅ **Solutions**:
+  1. Use `curl` instead of Postman:
+     ```bash
+     curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
+       -F "file=@path/to/your/image.jpg"
+     ```
+  2. ⚠️ **Note**: This Postman issue does NOT affect your Flutter app! The Flutter app uses the `http` package which works perfectly with Railway
+  3. For testing: Use Postman against `http://localhost:8000` OR use curl for Railway
 
 **Error: "cannot identify image file"**
 - ❌ **Problem**: File is corrupted or not a valid image
