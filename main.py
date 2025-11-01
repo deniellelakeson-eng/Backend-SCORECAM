@@ -37,42 +37,76 @@ app.add_middleware(
 # Global variables for model (loaded once at startup)
 model = None
 labels = None
-MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+
+# Model paths: Check Railway volume first, then local models/ directory
+# Railway volume is mounted at /models if you create a volume named "models"
+RAILWAY_VOLUME_PATH = Path("/models/mobilenetv2_rf.h5")
+LOCAL_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+MODEL_PATH = None  # Will be determined at startup
 LABELS_PATH = Path("models/labels.json")
+
+# Initialize labels as empty dict to prevent None errors
+labels = {}
 
 
 @app.on_event("startup")
 async def load_model():
     """Load Keras model and labels on server startup."""
-    global model, labels
+    global model, labels, MODEL_PATH
     
     try:
-        print("🔄 Loading Keras model...")
+        # Determine model path: Check Railway volume first, then local
+        if RAILWAY_VOLUME_PATH.exists():
+            MODEL_PATH = RAILWAY_VOLUME_PATH
+            print("📍 Using model from Railway Volume")
+        else:
+            MODEL_PATH = LOCAL_MODEL_PATH
+            print("📍 Using model from local models/ directory")
         
-        # Check if model file exists
-        if not MODEL_PATH.exists():
-            print(f"⚠️  Model file not found at: {MODEL_PATH}")
-            print("📝 Please place your mobilenetv2_rf.h5 file in the models/ directory")
-            return
+        print("=" * 50)
+        print("🌿 HerbaScan API Starting Up...")
+        print("=" * 50)
+        print(f"📂 Working directory: {Path.cwd()}")
+        print(f"📂 Model path: {MODEL_PATH.absolute()}")
+        print(f"📂 Labels path: {LABELS_PATH.absolute()}")
+        print(f"📂 Model exists: {MODEL_PATH.exists()}")
+        print(f"📂 Labels exists: {LABELS_PATH.exists()}")
+        print("=" * 50)
         
-        # Load model
-        model = tf.keras.models.load_model(str(MODEL_PATH))
-        print(f"✅ Model loaded successfully from {MODEL_PATH}")
-        
-        # Load labels
+        # Initialize labels first (even if model fails)
         if LABELS_PATH.exists():
             with open(LABELS_PATH, 'r') as f:
                 labels = json.load(f)
             print(f"✅ Labels loaded: {len(labels)} classes")
         else:
             print(f"⚠️  Labels file not found at: {LABELS_PATH}")
-            print("📝 Please place your labels.json file in the models/ directory")
-            # Create dummy labels (40 classes for HerbaScan)
+            print("📝 Creating dummy labels (40 classes for HerbaScan)")
             labels = {str(i): f"Plant_{i}" for i in range(40)}
         
+        # Check if model file exists
+        if not MODEL_PATH.exists():
+            print(f"⚠️  Model file not found at: {MODEL_PATH}")
+            print("📝 Server will start, but /identify endpoint will not work")
+            print("💡 To fix: Upload model file using Railway Volumes or Git LFS")
+            return
+        
+        print("🔄 Loading Keras model (this may take 30-60 seconds)...")
+        
+        # Load model
+        model = tf.keras.models.load_model(str(MODEL_PATH))
+        print(f"✅ Model loaded successfully from {MODEL_PATH}")
+        print("=" * 50)
+        print("✅ Server ready to accept requests!")
+        print("=" * 50)
+        
     except Exception as e:
+        import traceback
         print(f"❌ Error loading model: {str(e)}")
+        print(f"📋 Traceback:\n{traceback.format_exc()}")
         print("📝 Server will start, but /identify endpoint will not work")
+        # Ensure labels are set even on error
+        if labels is None:
+            labels = {str(i): f"Plant_{i}" for i in range(40)}
 
 
 @app.get("/")
@@ -108,8 +142,10 @@ async def test_endpoint():
     return {
         "message": "HerbaScan API is working!",
         "model_status": "loaded" if model is not None else "not loaded",
-        "model_path": str(MODEL_PATH),
-        "model_exists": MODEL_PATH.exists(),
+        "model_path": str(MODEL_PATH) if MODEL_PATH else "not determined yet",
+        "model_exists": MODEL_PATH.exists() if MODEL_PATH else False,
+        "railway_volume_exists": RAILWAY_VOLUME_PATH.exists(),
+        "local_model_exists": LOCAL_MODEL_PATH.exists(),
         "labels_count": len(labels) if labels else 0
     }
 
@@ -217,7 +253,8 @@ if __name__ == "__main__":
     import os
     
     print("🌿 Starting HerbaScan Grad-CAM API...")
-    print(f"📂 Model path: {MODEL_PATH}")
+    print(f"📂 Railway volume path: {RAILWAY_VOLUME_PATH}")
+    print(f"📂 Local model path: {LOCAL_MODEL_PATH}")
     print(f"📂 Labels path: {LABELS_PATH}")
     
     # Railway provides PORT environment variable
