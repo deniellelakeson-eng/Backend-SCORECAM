@@ -20,6 +20,18 @@ def preprocess_image(image_bytes: bytes, target_size: tuple = (224, 224)) -> np.
         Preprocessed image array ready for model inference [1, 224, 224, 3]
     """
     try:
+        # Validate that we have bytes
+        if not isinstance(image_bytes, bytes):
+            raise ValueError(f"Expected bytes, got {type(image_bytes)}")
+        
+        # Check if bytes are empty
+        if len(image_bytes) == 0:
+            raise ValueError("Image bytes are empty")
+        
+        # Check if it's a valid image format by looking at magic bytes
+        if not _is_valid_image(image_bytes):
+            raise ValueError("Invalid image format or corrupted image data")
+        
         # Load image from bytes
         image = Image.open(io.BytesIO(image_bytes))
         
@@ -41,8 +53,43 @@ def preprocess_image(image_bytes: bytes, target_size: tuple = (224, 224)) -> np.
         
         return img_array
     
+    except ValueError as e:
+        # Re-raise ValueError with better context
+        raise ValueError(f"Error preprocessing image: {str(e)}")
     except Exception as e:
         raise ValueError(f"Error preprocessing image: {str(e)}")
+
+
+def _is_valid_image(image_bytes: bytes) -> bool:
+    """
+    Check if bytes represent a valid image by checking magic bytes.
+    
+    Supports: JPEG, PNG, BMP, WEBP, GIF
+    """
+    if len(image_bytes) < 12:
+        return False
+    
+    # Check JPEG
+    if image_bytes[:3] == b'\xff\xd8\xff':
+        return True
+    
+    # Check PNG
+    if image_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+        return True
+    
+    # Check BMP
+    if image_bytes[:2] == b'BM':
+        return True
+    
+    # Check WEBP
+    if image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+        return True
+    
+    # Check GIF
+    if image_bytes[:6] in [b'GIF87a', b'GIF89a']:
+        return True
+    
+    return False
 
 
 def array_to_pil_image(img_array: np.ndarray) -> Image.Image:
