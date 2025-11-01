@@ -12,7 +12,7 @@
     },
     {
       "key": "railway_url",
-      "value": "https://herbascan-backend-production.up.railway.app",
+      "value": "https://YOUR-RAILWAY-URL.railway.app",
       "type": "string"
     }
   ],
@@ -24,9 +24,7 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/health",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "8000",
+          "host": ["{{base_url}}"],
           "path": ["health"]
         },
         "description": "Check if the API is healthy and model is loaded"
@@ -40,8 +38,7 @@
         "header": [],
         "url": {
           "raw": "{{railway_url}}/health",
-          "protocol": "https",
-          "host": ["herbascan-backend-production", "up", "railway", "app"],
+          "host": ["{{railway_url}}"],
           "path": ["health"]
         },
         "description": "Check if the deployed API is healthy"
@@ -55,9 +52,7 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "8000",
+          "host": ["{{base_url}}"],
           "path": [""]
         },
         "description": "Get API information"
@@ -71,9 +66,7 @@
         "header": [],
         "url": {
           "raw": "{{base_url}}/test",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "8000",
+          "host": ["{{base_url}}"],
           "path": ["test"]
         },
         "description": "Test endpoint for debugging"
@@ -98,9 +91,7 @@
         },
         "url": {
           "raw": "{{base_url}}/identify",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "8000",
+          "host": ["{{base_url}}"],
           "path": ["identify"]
         },
         "description": "Upload plant image and get identification with Grad-CAM"

@@ -23,10 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Model files (too large for git)
-models/*.h5
-models/*.pkl
-models/*.tflite
+
 
 # Keep directory structure
 !models/.gitkeep
