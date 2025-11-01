@@ -214,15 +214,19 @@ async def identify_plant(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
+    import os
     
     print("🌿 Starting HerbaScan Grad-CAM API...")
     print(f"📂 Model path: {MODEL_PATH}")
     print(f"📂 Labels path: {LABELS_PATH}")
     
+    # Railway provides PORT environment variable
+    port = int(os.environ.get("PORT", 8000))
+    
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=port,
         log_level="info"
     )
 

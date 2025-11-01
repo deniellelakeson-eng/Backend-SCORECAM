@@ -2,20 +2,22 @@
 # FastAPI Server for True Grad-CAM Computation
 
 # Web Framework
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-python-multipart>=0.0.12
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
 
 # Machine Learning
-tensorflow==2.20.0
-numpy>=2.0.0
+tensorflow==2.15.0
+numpy==1.24.3
 
 # Image Processing
-pillow>=11.0.0
+pillow==10.1.0
+opencv-python-headless==4.8.1.78
 
 # Utilities
-python-dotenv>=1.0.0
+python-dotenv==1.0.0
+requests==2.31.0
 
 # Optional: For better logging
-loguru>=0.7.2
+loguru==0.7.2
 
