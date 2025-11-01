@@ -102,7 +102,7 @@ Railway automatically provides `$PORT`, but you can set a default.
 2. Under **"Networking"**, click **"Generate Domain"**
 3. Railway will create a public URL like:
    ```
-   https://herbascan-backend-production.up.railway.app
+   https://YOUR-RAILWAY-URL.railway.app/
    ```
 4. **Copy this URL** - you'll use it in Flutter app!
 
@@ -135,18 +135,30 @@ curl https://YOUR-RAILWAY-URL.railway.app/
 
 #### **Test 3: Plant Identification (using Postman)**
 
+**IMPORTANT - Follow these steps exactly:**
+
 1. **Open Postman**
 2. **Create New Request:**
    - Method: `POST`
    - URL: `https://YOUR-RAILWAY-URL.railway.app/identify`
 3. **Set Body:**
-   - Type: `form-data`
-   - Key: `file` (change type to "File")
-   - Value: Select a plant image (jpg/png)
+   - Select the **"Body"** tab
+   - Choose **"form-data"** (NOT "raw" or "binary")
+   - Add a new field with:
+     - **Key:** `file` (exactly this name)
+     - Click the dropdown on the right, **change "Text" to "File"**
+     - Click **"Select Files"** and choose an **ACTUAL image file** from your computer (.jpg or .png)
+     - ⚠️ **DO NOT** use the placeholder "path/to/plant/image.jpg" - select a real file!
 4. **Click Send**
 5. **Check Response:**
    - Should see `plant_name`, `confidence`, `gradcam_image` (base64)
    - Processing time should be under 5 seconds
+
+**Alternative: Test with curl (more reliable)**
+```bash
+curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
+  -F "file=@path/to/your/image.jpg"
+```
 
 ---
 
@@ -164,6 +176,34 @@ curl https://YOUR-RAILWAY-URL.railway.app/
 - **Model file not found**: Make sure `mobilenetv2_rf.h5` is committed to git
 - **Out of memory**: Railway free tier has 512MB RAM limit. Consider upgrading or optimizing model.
 - **TensorFlow installation failed**: Check Dockerfile dependencies
+
+### **File Upload Errors**
+
+**Error: "Image bytes are empty"**
+- ❌ **Problem**: You didn't select an actual file in Postman
+- ✅ **Solution**: 
+  1. In Postman form-data, make sure the dropdown next to key "file" says "File" (not "Text")
+  2. Click "Select Files" and choose a real .jpg or .png from your computer
+  3. Don't use placeholder text like "path/to/image.jpg"
+
+**Error: "Misordered multipart fields; files should follow 'map'"**
+- ❌ **Problem**: Railway proxy has issues with Postman's multipart format
+- ✅ **Solution**: Use `curl` instead of Postman:
+  ```bash
+  curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
+    -F "file=@path/to/your/image.jpg"
+  ```
+
+**Error: "cannot identify image file"**
+- ❌ **Problem**: File is corrupted or not a valid image
+- ✅ **Solution**: 
+  1. Try a different image file
+  2. Make sure it's .jpg, .png, .bmp, .webp, or .gif format
+  3. Check file isn't corrupted
+
+**Check Railway logs for detailed error:**
+- Go to Railway dashboard → Deployments → Latest deployment → Logs
+- Look for "DEBUG:" lines to see what was received
 
 ### **Model Not Loading**
 
