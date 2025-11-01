@@ -20,6 +20,14 @@ def preprocess_image(image_bytes: bytes, target_size: tuple = (224, 224)) -> np.
         Preprocessed image array ready for model inference [1, 224, 224, 3]
     """
     try:
+        # Handle BytesIO or bytes
+        if not isinstance(image_bytes, bytes):
+            # If it's a BytesIO-like object, try to read from it
+            if hasattr(image_bytes, 'read'):
+                image_bytes = image_bytes.read()
+            else:
+                raise ValueError(f"Expected bytes or file-like object, got {type(image_bytes)}")
+        
         # Validate that we have bytes
         if not isinstance(image_bytes, bytes):
             raise ValueError(f"Expected bytes, got {type(image_bytes)}")
