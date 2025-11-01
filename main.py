@@ -146,6 +146,16 @@ async def identify_plant(file: UploadFile = File(...)):
         # Read uploaded image
         image_bytes = await file.read()
         
+        # Log for debugging
+        print(f"DEBUG: Received file '{file.filename}', content_type: {file.content_type}, bytes type: {type(image_bytes)}, bytes len: {len(image_bytes) if isinstance(image_bytes, bytes) else 'N/A'}")
+        
+        # Ensure we have bytes
+        if not isinstance(image_bytes, bytes):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected bytes, got {type(image_bytes)}"
+            )
+        
         # Preprocess image for model
         img_array = preprocess_image(image_bytes, target_size=(224, 224))
         
