@@ -1,0 +1,128 @@
+{
+  "info": {
+    "name": "HerbaScan Grad-CAM API",
+    "description": "API collection for testing HerbaScan backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "railway_url",
+      "value": "https://YOUR-RAILWAY-URL.railway.app",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check (Local)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is healthy and model is loaded"
+      },
+      "response": []
+    },
+    {
+      "name": "2. Health Check (Railway)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{railway_url}}/health",
+          "host": ["{{railway_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the deployed API is healthy"
+      },
+      "response": []
+    },
+    {
+      "name": "3. Root Endpoint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/",
+          "host": ["{{base_url}}"],
+          "path": [""]
+        },
+        "description": "Get API information"
+      },
+      "response": []
+    },
+    {
+      "name": "4. Test Endpoint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/test",
+          "host": ["{{base_url}}"],
+          "path": ["test"]
+        },
+        "description": "Test endpoint for debugging"
+      },
+      "response": []
+    },
+    {
+      "name": "5. Identify Plant (Local)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/plant/image.jpg",
+              "description": "Select a plant image file"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/identify",
+          "host": ["{{base_url}}"],
+          "path": ["identify"]
+        },
+        "description": "Upload plant image and get identification with Grad-CAM"
+      },
+      "response": []
+    },
+    {
+      "name": "6. Identify Plant (Railway)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/plant/image.jpg",
+              "description": "Select a plant image file"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{railway_url}}/identify",
+          "host": ["{{railway_url}}"],
+          "path": ["identify"]
+        },
+        "description": "Test deployed API with plant image"
+      },
+      "response": []
+    }
+  ]
+}
+

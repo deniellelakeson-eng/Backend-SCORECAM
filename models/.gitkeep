@@ -1,0 +1,5 @@
+# Keep this directory in git
+# Place your model files here:
+# - mobilenetv2_rf.h5
+# - labels.json
+
