@@ -12,6 +12,7 @@ numpy>=2.0.0
 
 # Image Processing
 pillow>=11.0.0
+opencv-python>=4.9.0
 
 # Utilities
 python-dotenv>=1.0.0
