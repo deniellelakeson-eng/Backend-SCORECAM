@@ -116,7 +116,7 @@ async def test_endpoint():
 
 
 @app.post("/identify")
-async def identify_plant(file: UploadFile):
+async def identify_plant(file: UploadFile = File(...)):
     """
     Main endpoint: Identify plant and generate Grad-CAM visualization.
     

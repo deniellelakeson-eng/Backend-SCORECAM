@@ -1,12 +1,37 @@
-# Python
+# ===========================================
+# HerbaScan Backend - .gitignore
+# Python FastAPI Backend Server
+# ===========================================
+
+# ===========================================
+# Python Virtual Environments
+# ===========================================
+
+venv/
+env/
+.venv/
+virtualenv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+*.venv
+
+# ===========================================
+# Python Cache & Compiled Files
+# ===========================================
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# C extensions
+*.so
+
+# Distribution / packaging
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -19,40 +44,348 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
+# PyInstaller
+*.manifest
+*.spec
 
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Keep directory structure
-!models/.gitkeep
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+pyre/
 
-# Environment variables
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
 .env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
 
-# IDEs
+# ===========================================
+# IDE & Editor Files
+# ===========================================
+
+# VS Code
 .vscode/
+*.code-workspace
+
+# IntelliJ / PyCharm
 .idea/
+*.iml
+*.ipr
+*.iws
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
 *~
+.*.swp
+.*.swo
+.*.un~
 
-# OS
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ===========================================
+# OS Specific Files
+# ===========================================
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===========================================
+# Logs & Temporary Files
+# ===========================================
 
 # Logs
 *.log
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+logs/
+*.log.*
+log/
 
 # Temporary files
 *.tmp
-temp/
+*.temp
+*.bak
+*.swp
+*.swo
+*~
 tmp/
+temp/
+.tmp/
 
+# ===========================================
+# Database Files
+# ===========================================
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ===========================================
+# TensorFlow / ML Models
+# ===========================================
+
+# Uncomment if model files are too large for git
+# models/*.h5
+# models/*.tflite
+# models/*.pb
+# models/*.pkl
+# models/*.pt
+# models/*.pth
+# models/*.onnx
+
+# TensorFlow SavedModel
+models/saved_model/
+models/*/saved_model/
+
+# TensorBoard logs
+runs/
+tensorboard_logs/
+*.events.*
+*.tfevents.*
+
+# Model checkpoints
+checkpoints/
+ckpt/
+*.ckpt
+*.ckpt.*
+
+# MLflow
+mlruns/
+
+# Weights & Biases
+wandb/
+
+# ===========================================
+# Docker
+# ===========================================
+
+# Docker build artifacts
+.dockerignore.bak
+docker-compose.override.yml
+
+# ===========================================
+# Railway Deployment
+# ===========================================
+
+.railway/
+railway.json.bak
+
+# ===========================================
+# FastAPI / Uvicorn
+# ===========================================
+
+# Uvicorn logs
+uvicorn.log
+*.uvicorn.log
+
+# FastAPI generated docs (if generated locally)
+.docs/
+
+# ===========================================
+# Testing
+# ===========================================
+
+# Test outputs
+test_output/
+test_results/
+*.test.log
+
+# ===========================================
+# API Keys & Secrets
+# ===========================================
+
+# Never commit these!
+secrets.json
+secrets.yaml
+secrets.yml
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+
+# ===========================================
+# Uploaded Files (if any)
+# ===========================================
+
+uploads/
+static/uploads/
+media/
+
+# ===========================================
+# Generated Documentation
+# ===========================================
+
+docs/_build/
+docs/build/
+.site/
+
+# ===========================================
+# Keep Directory Structure
+# ===========================================
+
+# Keep models directory but ignore contents if needed
+!models/.gitkeep
+!models/README.md
+
+# Keep utils directory
+!utils/.gitkeep
+!utils/__init__.py
+
+# ===========================================
+# Miscellaneous
+# ===========================================
+
+# Python type stubs
+*.pyi
+.pytype/
+
+# Cython
+cython_debug/
+
+# Pyre type checker
+.pyre/
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+
+# Profiling data
+.prof
+
+# ===========================================
+# HerbaScan Backend Specific
+# ===========================================
+
+# GradCAM generated images (if generated server-side)
+gradcam_output/
+gradcam_images/
+*.gradcam.png
+*.heatmap.png
+
+# Model processing outputs
+model_outputs/
+processed_images/
+
+# API test files (if generated)
+test_*.json
+test_*.yaml
+
+# Backup files
+*.bak
+*.backup
+*~

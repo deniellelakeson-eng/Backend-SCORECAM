@@ -2,4 +2,6 @@
 # Place your model files here:
 # - mobilenetv2_rf.h5
 # - labels.json
+# - cam_weights.json
+
 
