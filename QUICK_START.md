@@ -1,5 +1,9 @@
 # HerbaScan Backend - Quick Start Guide
 
+**Last Updated**: December 2025  
+**Backend Version**: 0.5.0  
+**Flutter App Version**: v0.5.8
+
 ## ✅ **What's Complete**
 
 Your backend is **100% ready** to deploy! All code is written and tested.
@@ -239,6 +243,7 @@ Once deployed, you have:
 - ✅ Base64 encoded heatmap images
 - ✅ Top-3 predictions with confidence scores
 - ✅ Ready for Flutter integration
+- ✅ Integrated with Hybrid XAI Explanation System (v0.5.8)
 
 ### Next Steps
 

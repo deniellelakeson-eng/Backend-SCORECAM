@@ -1,8 +1,16 @@
 # HerbaScan Backend API
 
+**Last Updated**: December 2025  
+**Backend Version**: 0.5.0  
+**Flutter App Version**: v0.5.8
+
 FastAPI server for true Grad-CAM (Gradient-weighted Class Activation Mapping) computation using TensorFlow.
 
+This backend provides online GradCAM computation for the HerbaScan mobile app's Hybrid XAI Explanation System. The Flutter app uses this backend for online heatmap generation when internet connectivity is available, falling back to offline CAM when offline.
+
 ## 📋 Setup Instructions
+
+> **Note**: This backend is part of the HerbaScan Hybrid XAI Explanation System. The Flutter app (v0.5.8) uses this backend for online GradCAM computation, while offline explanations use pre-written JSON data and offline CAM heatmaps.
 
 ### 1. Place Model Files
 
@@ -93,25 +101,16 @@ python create_multi_output_tflite.py
 # Output: backend/models/mobilenetv2_multi_output.tflite
 ```
 
-#### Step 4: Update Flutter Assets
+#### Step 4: Update Flutter Assets & Redeploy Backend
 
-After generating the new files, copy them to Flutter assets:
-
+**Copy generated files to Flutter assets:**
 ```bash
-# Copy CAM weights
-cp backend/models/cam_weights.json assets/models/cam_weights.json
-
-# Copy multi-output TFLite model
-cp backend/models/mobilenetv2_multi_output.tflite assets/models/mobilenetv2_multi_output.tflite
-
-# Copy labels (if updated)
-cp backend/models/labels.json assets/models/labels.json
+cp backend/models/cam_weights.json assets/models/
+cp backend/models/mobilenetv2_multi_output.tflite assets/models/
+cp backend/models/labels.json assets/models/
 ```
 
-#### Step 5: Update pubspec.yaml
-
-Ensure `pubspec.yaml` includes the new model files:
-
+**Update `pubspec.yaml` to include:**
 ```yaml
 flutter:
   assets:
@@ -120,7 +119,12 @@ flutter:
     - assets/models/labels.json
 ```
 
-#### Step 6: Redeploy Backend (Railway)
+**Rebuild Flutter app:**
+```bash
+flutter clean && flutter pub get && flutter run
+```
+
+**Redeploy Backend (Railway):**
 
 If deployed to Railway, update the deployment:
 
@@ -144,50 +148,6 @@ git push
 3. Restart service
 
 ---
-
-### Adding/Updating Flutter Assets Models
-
-The Flutter app uses offline models for CAM computation when internet is unavailable.
-
-#### Required Files in `assets/models/`:
-
-```
-assets/models/
-├── cam_weights.json                    ← CAM classification weights
-├── mobilenetv2_multi_output.tflite    ← Multi-output TFLite model
-├── labels.json                         ← Plant class labels
-└── labels.txt                          ← Optional: Text labels
-```
-
-#### Updating Process:
-
-1. **Generate files from backend model:**
-   - Run `extract_cam_weights.py` → creates `cam_weights.json`
-   - Run `create_multi_output_tflite.py` → creates `mobilenetv2_multi_output.tflite`
-
-2. **Copy to assets:**
-   ```bash
-   # From project root
-   cp backend/models/cam_weights.json assets/models/
-   cp backend/models/mobilenetv2_multi_output.tflite assets/models/
-   cp backend/models/labels.json assets/models/
-   ```
-
-3. **Update pubspec.yaml:**
-   ```yaml
-   flutter:
-     assets:
-       - assets/models/cam_weights.json
-       - assets/models/mobilenetv2_multi_output.tflite
-       - assets/models/labels.json
-   ```
-
-4. **Rebuild Flutter app:**
-   ```bash
-   flutter clean
-   flutter pub get
-   flutter run
-   ```
 
 ---
 
@@ -457,34 +417,17 @@ for i, detail in enumerate(output_details):
 
 ---
 
-#### Step 3: Copy to Flutter Assets
+#### Step 3: Copy to Flutter Assets & Update pubspec.yaml
 
-After both scripts succeed, copy the generated files to the Flutter app:
-
+**Copy generated files:**
 ```bash
-# From project root (herbascan/)
+# From project root
 cp backend/models/cam_weights.json assets/models/
 cp backend/models/mobilenetv2_multi_output.tflite assets/models/
-
-# Also copy labels if updated
 cp backend/models/labels.json assets/models/
 ```
 
-**Verify files are copied:**
-```bash
-ls -lh assets/models/
-# Should show:
-# - cam_weights.json (~65 KB)
-# - mobilenetv2_multi_output.tflite (~10-15 MB)
-# - labels.json
-```
-
----
-
-#### Step 4: Update Flutter pubspec.yaml
-
-Ensure `pubspec.yaml` includes the model files:
-
+**Update `pubspec.yaml`:**
 ```yaml
 flutter:
   assets:
@@ -493,11 +436,9 @@ flutter:
     - assets/models/labels.json
 ```
 
-**Then rebuild Flutter app:**
+**Rebuild Flutter app:**
 ```bash
-flutter clean
-flutter pub get
-flutter run
+flutter clean && flutter pub get && flutter run
 ```
 
 ---
@@ -518,49 +459,25 @@ python extract_cam_weights.py
 # 4. Create multi-output TFLite model
 python create_multi_output_tflite.py
 
-# 5. Copy to Flutter assets (from project root)
-cd ..
-cp backend/models/cam_weights.json assets/models/
-cp backend/models/mobilenetv2_multi_output.tflite assets/models/
-cp backend/models/labels.json assets/models/
-
-# 6. Update pubspec.yaml (add assets if not already there)
-
-# 7. Rebuild Flutter app
-flutter clean
-flutter pub get
-flutter run
+# 5. Copy to Flutter assets and update pubspec.yaml (see Step 3 above)
+# 6. Rebuild Flutter app: flutter clean && flutter pub get && flutter run
 ```
 
 ---
 
 ### Troubleshooting Model Updates
 
-#### Issue: Model Not Loading
+**Common Issues & Quick Fixes:**
 
-**Symptoms:**
-- Server shows `"model_loaded": false` in `/health` endpoint
-- Error: "Model file not found" or "Invalid model"
+| Issue | Symptoms | Solution |
+|-------|----------|----------|
+| **Model Not Loading** | `"model_loaded": false` | Check file path, verify model format, check TensorFlow version (2.15.0 recommended) |
+| **TFLite Conversion Fails** | AttributeError or conversion errors | Try TensorFlow 2.15.0, check model structure, review script output |
+| **CAM Weights Extraction Fails** | "Could not find classification layer" | Check model architecture, update layer name in script, verify model has dense layer |
+| **Multi-Output TFLite Fails** | Wrong number of outputs | Verify model has conv layers, try different TF version, check conversion method used |
+| **Flutter App Can't Load Models** | Model file not found | Verify files in assets/, check pubspec.yaml, run `flutter clean` |
 
-**Solutions:**
-1. **Check file path:**
-   ```bash
-   ls -lh backend/models/mobilenetv2_rf.h5
-   # Should show file exists and has reasonable size
-   ```
-
-2. **Verify model format:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   print(model.summary())
-   ```
-
-3. **Check TensorFlow version:**
-   ```bash
-   pip show tensorflow
-   # Recommended: tensorflow==2.15.0 or tensorflow==2.13.0
-   ```
+**Detailed Solutions:**
 
 #### Issue: TFLite Conversion Fails
 
@@ -598,210 +515,32 @@ flutter run
        print(f"Output {i}: {detail['shape']}")
    ```
 
-#### Issue: CAM Weights Extraction Fails (`extract_cam_weights.py`)
+#### Issue: CAM Weights Extraction Fails
 
-**Symptoms:**
-- Error: "Could not find classification layer"
-- Error: "Layer has no weights"
-- Error: "Model file not found"
+**Quick Fixes:**
+1. Verify model file exists and can be loaded
+2. Check model architecture has dense/classification layer
+3. Find layer manually: `for layer in reversed(model.layers): if len(layer.get_weights()) > 0: print(layer.name)`
+4. Update `extract_cam_weights.py` to add your layer name to `possible_names` list
+5. Use TensorFlow 2.15.0 (recommended)
 
-**Solutions:**
+#### Issue: Multi-Output TFLite Conversion Fails
 
-1. **Check model file exists:**
-   ```bash
-   ls -lh backend/models/mobilenetv2_rf.h5
-   # Verify file exists and has reasonable size
-   ```
-
-2. **Check model can be loaded:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   print("Model loaded successfully!")
-   print(f"Input shape: {model.input_shape}")
-   print(f"Output shape: {model.output_shape}")
-   ```
-
-3. **Check model architecture:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   print("\nAll layers:")
-   for i, layer in enumerate(model.layers):
-       print(f"[{i}] {layer.name}: {type(layer).__name__}")
-       if len(layer.get_weights()) > 0:
-           print(f"     Has weights: {[w.shape for w in layer.get_weights()]}")
-   ```
-
-4. **Find classification layer manually:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   # Find last layer with weights
-   for layer in reversed(model.layers):
-       if len(layer.get_weights()) > 0:
-           print(f"Last layer with weights: {layer.name}")
-           print(f"  Type: {type(layer).__name__}")
-           print(f"  Weights: {[w.shape for w in layer.get_weights()]}")
-           break
-   ```
-
-5. **Update layer finding logic:**
-   - Edit `backend/extract_cam_weights.py`
-   - Find the `possible_names` list (around line 22)
-   - Add your layer name to the list:
-     ```python
-     possible_names = [
-         'predictions',
-         'dense',
-         'dense_1',
-         'your_layer_name',  # Add your layer name here
-         'fc',
-         'classifier',
-         'output',
-         'softmax',
-         'dense_final'
-     ]
-     ```
-
-6. **Check TensorFlow version:**
-   ```bash
-   pip show tensorflow
-   # Recommended: tensorflow==2.15.0 or tensorflow==2.13.0
-   ```
-
-#### Issue: Multi-Output TFLite Conversion Fails (`create_multi_output_tflite.py`)
-
-**Symptoms:**
-- Error: "Could not find convolutional layer"
-- Error: "AttributeError: 'TFLiteSavedModelConverterV2' object has no attribute '_funcs'"
-- Error: "Model has wrong number of outputs"
-- Error: "Conversion failed"
-
-**Solutions:**
-
-1. **Check model has convolutional layers:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   conv_layers = []
-   for i, layer in enumerate(model.layers):
-       layer_type = type(layer).__name__
-       if any(x in layer_type for x in ['Conv2D', 'DepthwiseConv2D', 'SeparableConv2D']):
-           conv_layers.append((i, layer.name, layer_type))
-           print(f"Conv layer [{i}]: {layer.name} ({layer_type})")
-   if not conv_layers:
-       print("ERROR: No convolutional layers found in model!")
-   ```
-
-2. **Check last conv layer output shape:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   # Find last conv layer
-   last_conv = None
-   for layer in model.layers:
-       if 'Conv' in type(layer).__name__:
-           last_conv = layer
-   if last_conv:
-       print(f"Last conv layer: {last_conv.name}")
-       # Create a test model to get output shape
-       test_model = tf.keras.Model(inputs=model.input, outputs=last_conv.output)
-       dummy_input = tf.zeros((1, 224, 224, 3))
-       output = test_model(dummy_input)
-       print(f"Output shape: {output.shape}")
-   ```
-
-3. **Try different TensorFlow version:**
-   ```bash
-   # Uninstall current version
-   pip uninstall tensorflow
-   
-   # Install recommended version
-   pip install tensorflow==2.15.0
-   
-   # Or try
-   pip install tensorflow==2.13.0
-   ```
-
-4. **Check which conversion method is being used:**
-   - The script tries 5 different methods
-   - Check the output to see which method succeeded
-   - If all methods fail, check the error message
-   - Method 2 (concrete function) usually works best with newer TensorFlow
-
-5. **Verify multi-output model creation:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   # Manually create multi-output model
-   last_conv_layer = None
-   for layer in model.layers:
-       if 'Conv' in type(layer).__name__:
-           last_conv_layer = layer
-   if last_conv_layer:
-       multi_output = tf.keras.Model(
-           inputs=model.input,
-           outputs=[last_conv_layer.output, model.output]
-       )
-       print(f"Multi-output model created!")
-       print(f"Output 0 shape: {multi_output.output[0].shape}")
-       print(f"Output 1 shape: {multi_output.output[1].shape}")
-       # Test with dummy input
-       dummy = tf.zeros((1, 224, 224, 3))
-       outputs = multi_output(dummy)
-       print(f"Test outputs: {len(outputs)} outputs")
-   ```
-
-6. **Check TFLite model after conversion:**
-   ```python
-   import tensorflow as tf
-   interpreter = tf.lite.Interpreter(model_path='backend/models/mobilenetv2_multi_output.tflite')
-   interpreter.allocate_tensors()
-   output_details = interpreter.get_output_details()
-   print(f"Number of outputs: {len(output_details)}")
-   for i, detail in enumerate(output_details):
-       print(f"Output {i}: shape={detail['shape']}, dtype={detail['dtype']}")
-   ```
-
-7. **Review script output:**
-   - The script provides detailed error messages
-   - Check which conversion method failed
-   - Look for specific error types (AttributeError, ValueError, etc.)
-   - Check TensorFlow version compatibility warnings
+**Quick Fixes:**
+1. Verify model has convolutional layers
+2. Check last conv layer output shape matches expected `[1, 7, 7, 1280]`
+3. Try TensorFlow 2.15.0 (uninstall current, install recommended version)
+4. Script tries 5 conversion methods - check output for which succeeded
+5. Verify multi-output model creation before conversion
+6. Check TFLite model after conversion: `interpreter.get_output_details()`
 
 #### Issue: Flutter App Can't Load Models
 
-**Symptoms:**
-- Error: "Model file not found in assets"
-- Error: "TFLite model has wrong number of outputs"
-
-**Solutions:**
-1. **Verify files in assets:**
-   ```bash
-   ls -lh assets/models/
-   # Should show: cam_weights.json, mobilenetv2_multi_output.tflite, labels.json
-   ```
-
-2. **Check pubspec.yaml:**
-   ```yaml
-   flutter:
-     assets:
-       - assets/models/cam_weights.json
-       - assets/models/mobilenetv2_multi_output.tflite
-       - assets/models/labels.json
-   ```
-
-3. **Clean and rebuild:**
-   ```bash
-   flutter clean
-   flutter pub get
-   flutter run
-   ```
-
-4. **Verify TFLite model:**
-   - Use a TFLite viewer or test the model in Python first
-   - Ensure model has exactly 2 outputs
+**Quick Fixes:**
+1. Verify files exist in `assets/models/` directory
+2. Check `pubspec.yaml` includes all model files
+3. Run `flutter clean && flutter pub get && flutter run`
+4. Verify TFLite model has exactly 2 outputs
 
 ---
 
@@ -829,52 +568,33 @@ flutter run
 
 ---
 
-### 2. Install Dependencies
+## 🚀 Quick Setup & Local Development
+
+### Install Dependencies
 
 ```bash
-# Create virtual environment (recommended)
+# Create and activate virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Mac/Linux:
-source venv/bin/activate
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Mac/Linux
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Run Locally
+### Run Locally
 
 ```bash
 # Run the server
 python main.py
-
-# Or use uvicorn directly
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Or: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at: `http://localhost:8000`
-
-### 4. Test the API
-
-**Health Check:**
+**Test endpoints:**
 ```bash
 curl http://localhost:8000/health
-```
-
-**Test Endpoint:**
-```bash
 curl http://localhost:8000/test
-```
-
-**Identify Plant (using Postman or curl):**
-```bash
-curl -X POST \
-  http://localhost:8000/identify \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@path/to/plant/image.jpg"
+curl -X POST http://localhost:8000/identify -F "file=@path/to/image.jpg"
 ```
 
 ## 🚀 Deployment to Railway
@@ -1046,6 +766,8 @@ Or use Postman (see Testing section below).
 
 Once deployed, update your Flutter app with the Railway URL:
 
+> **Note**: The Flutter app (v0.5.8) includes a Hybrid XAI Explanation System that uses this backend for online GradCAM heatmaps. The app automatically falls back to offline CAM and offline JSON explanations when internet is unavailable. See the main `README.md` for details on the XAI system.
+
 ```dart
 // lib/core/services/online_gradcam_service.dart
 static const String serverUrl = 'https://YOUR-RAILWAY-URL.railway.app';
@@ -1144,655 +866,84 @@ HOST=0.0.0.0
 
 ## 🧪 Testing with Postman
 
-The HerbaScan API comes with a ready-to-use Postman collection (`HerbaScan_API.postman_collection.json`) that includes all endpoints for both local and Railway deployment.
+**Collection File:** `backend/HerbaScan_API.postman_collection.json`
 
-### 📦 **Postman Collection File**
+**Included Endpoints:** Health Check (Local/Railway), Root, Test, Identify Plant (Local/Railway)
 
-**Location:** `backend/HerbaScan_API.postman_collection.json`
+**Variables:** `base_url` (localhost:8000), `railway_url` (your Railway URL)
 
-**Included Endpoints:**
-1. Health Check (Local) - `GET http://localhost:8000/health`
-2. Health Check (Railway) - `GET {{railway_url}}/health`
-3. Root Endpoint - `GET http://localhost:8000/`
-4. Test Endpoint - `GET http://localhost:8000/test`
-5. Identify Plant (Local) - `POST http://localhost:8000/identify`
-6. Identify Plant (Railway) - `POST {{railway_url}}/identify`
+### Method 1: Postman Desktop App (Recommended)
 
-**Variables:**
-- `base_url`: `http://localhost:8000` (for local testing)
-- `railway_url`: `https://YOUR-RAILWAY-URL.railway.app` (update with your Railway URL)
+1. **Install & Import:** Download Postman, import `HerbaScan_API.postman_collection.json`
+2. **Update Variables:** Set `railway_url` in collection variables tab
+3. **Test Local:** Start server (`python main.py`), test Health Check and Identify Plant endpoints
+4. **Test Railway:** Use Railway endpoints (if multipart errors occur, use `curl` instead)
 
----
+### Method 2: VS Code Extensions
 
-## 🖥️ **Method 1: Using Postman Desktop App** (Recommended)
+**REST Client:** Install extension, create `api-test.http` file with requests  
+**Thunder Client:** Install extension, import Postman collection, update variables
 
-### Step 1: Install Postman
+**Note:** REST Client has limitations with file uploads - use Postman or curl for file uploads.
 
-1. **Download Postman:**
-   - Go to [https://www.postman.com/downloads/](https://www.postman.com/downloads/)
-   - Download for your operating system (Windows, Mac, Linux)
-   - Install and open Postman
+### Method 3: Other IDEs
 
-2. **Create a Postman account** (optional but recommended):
-   - Sign up for free at [https://www.postman.com/signup/](https://www.postman.com/signup/)
-   - Or use without account (limited features)
+**IntelliJ/PyCharm:** Install HTTP Client plugin, create `.http` file  
+**JetBrains:** Built-in HTTP Client, create `.http` file with requests
 
-### Step 2: Import the Collection
-
-1. **Open Postman**
-
-2. **Import the collection:**
-   - Click **"Import"** button (top left)
-   - Or go to **File → Import**
-   - Click **"Upload Files"** or **"Choose Files"**
-   - Navigate to `backend/HerbaScan_API.postman_collection.json`
-   - Select the file and click **"Import"**
-
-3. **Verify collection imported:**
-   - You should see **"HerbaScan Grad-CAM API"** in the left sidebar
-   - Expand it to see all 6 requests
-
-### Step 3: Update Railway URL Variable
-
-1. **Open collection variables:**
-   - Click on **"HerbaScan Grad-CAM API"** collection (in left sidebar)
-   - Click on **"Variables"** tab (at the top)
-
-2. **Update Railway URL:**
-   - Find the `railway_url` variable
-   - In the **"Current Value"** column, replace `https://YOUR-RAILWAY-URL.railway.app` with your actual Railway URL
-   - Example: `https://herbascan-backend-production.up.railway.app`
-   - The variable is automatically saved
-
-3. **Verify variables:**
-   - `base_url` should be: `http://localhost:8000`
-   - `railway_url` should be: `https://your-actual-railway-url.railway.app`
-
-### Step 4: Test Local Endpoints
-
-1. **Start your local server:**
-   ```bash
-   cd backend
-   python main.py
-   ```
-   Server should be running on `http://localhost:8000`
-
-2. **Test Health Check (Local):**
-   - Click on **"1. Health Check (Local)"** request
-   - Click **"Send"** button
-   - Expected response:
-     ```json
-     {
-       "status": "healthy",
-       "model_loaded": true,
-       "labels_loaded": true,
-       "num_classes": 40
-     }
-     ```
-
-3. **Test Root Endpoint:**
-   - Click on **"3. Root Endpoint"** request
-   - Click **"Send"**
-   - Should return API information
-
-4. **Test Identify Plant (Local):**
-   - Click on **"5. Identify Plant (Local)"** request
-   - Go to **"Body"** tab
-   - Under **"form-data"**, find the `file` field
-   - **Important**: Click the dropdown next to `file` and change from **"Text"** to **"File"**
-   - Click **"Select Files"** and choose a plant image from your computer
-   - Click **"Send"**
-   - Expected response:
-     ```json
-     {
-       "plant_name": "4Vitex negundo(VN)",
-       "scientific_name": "4Vitex negundo(VN)",
-       "confidence": 0.942,
-       "all_predictions": [...],
-       "gradcam_image": "iVBORw0KGgoAAAANSUhEUg...",
-       "method": "grad-cam",
-       "processing_time_ms": 3456.78
-     }
-     ```
-
-### Step 5: Test Railway Endpoints
-
-1. **Test Health Check (Railway):**
-   - Click on **"2. Health Check (Railway)"** request
-   - Click **"Send"**
-   - Should return the same response as local (if Railway is deployed)
-
-2. **Test Identify Plant (Railway):**
-   - Click on **"6. Identify Plant (Railway)"** request
-   - Go to **"Body"** tab
-   - Set up file upload (same as local)
-   - Click **"Send"**
-   - ⚠️ **Note**: If you get a multipart error, use `curl` instead (see troubleshooting below)
-
----
-
-## 💻 **Method 2: Using VS Code** (REST Client Extension)
-
-### Option A: REST Client Extension
-
-1. **Install REST Client extension:**
-   - Open VS Code
-   - Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
-   - Search for **"REST Client"** by Huachao Mao
-   - Click **"Install"**
-
-2. **Create a REST Client file:**
-   - Create a new file: `backend/api-test.http` (or `.rest`)
-   - Copy the following content:
-
-   ```http
-   ### Variables
-   @base_url = http://localhost:8000
-   @railway_url = https://YOUR-RAILWAY-URL.railway.app
-
-   ### 1. Health Check (Local)
-   GET {{base_url}}/health
-
-   ### 2. Health Check (Railway)
-   GET {{railway_url}}/health
-
-   ### 3. Root Endpoint
-   GET {{base_url}}/
-
-   ### 4. Test Endpoint
-   GET {{base_url}}/test
-
-   ### 5. Identify Plant (Local)
-   POST {{base_url}}/identify
-   Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-
-   ------WebKitFormBoundary7MA4YWxkTrZu0gW
-   Content-Disposition: form-data; name="file"; filename="plant.jpg"
-   Content-Type: image/jpeg
-
-   < ./path/to/your/plant/image.jpg
-   ------WebKitFormBoundary7MA4YWxkTrZu0gW--
-
-   ### 6. Identify Plant (Railway) - Use curl instead
-   # REST Client doesn't handle file uploads well for Railway
-   # Use: curl -X POST {{railway_url}}/identify -F "file=@path/to/image.jpg"
-   ```
-
-3. **Update variables:**
-   - Replace `@railway_url` with your actual Railway URL
-   - Update the file path in request 5
-
-4. **Test endpoints:**
-   - Click **"Send Request"** above each request
-   - Or use Ctrl+Alt+R (Cmd+Alt+R on Mac)
-   - View response in a new tab
-
-**Note:** REST Client has limitations with file uploads. For file uploads, use Postman or curl.
-
-### Option B: Thunder Client Extension
-
-1. **Install Thunder Client:**
-   - Open VS Code
-   - Go to Extensions
-   - Search for **"Thunder Client"** by Ranga Vadhineni
-   - Click **"Install"**
-
-2. **Import Postman collection:**
-   - Click Thunder Client icon in VS Code sidebar
-   - Click **"Collections"** tab
-   - Click **"New"** → **"Import"**
-   - Select **"From File"**
-   - Choose `backend/HerbaScan_API.postman_collection.json`
-   - Click **"Import"**
-
-3. **Update variables:**
-   - Click on collection name
-   - Go to **"Variables"** tab
-   - Update `railway_url` with your Railway URL
-
-4. **Test endpoints:**
-   - Click on any request
-   - For file uploads, go to **"Body"** → **"Form"** tab
-   - Add field: `file` (type: File)
-   - Select your image file
-   - Click **"Send"**
-
----
-
-## 🔧 **Method 3: Using Other IDEs**
-
-### IntelliJ IDEA / PyCharm
-
-1. **Install HTTP Client plugin:**
-   - Go to **File → Settings → Plugins**
-   - Search for **"HTTP Client"**
-   - Install and restart IDE
-
-2. **Create HTTP request file:**
-   - Create `backend/api-test.http`
-   - Use same format as REST Client (see Method 2, Option A)
-
-3. **Run requests:**
-   - Click green play button next to each request
-   - Or use Ctrl+Enter
-
-### JetBrains HTTP Client
-
-1. **Create `.http` file:**
-   - Create `backend/api-test.http`
-   - Use REST Client format (see Method 2, Option A)
-
-2. **Run requests:**
-   - Click run button or use keyboard shortcut
-
----
-
-## 🧪 **Method 4: Using curl (Command Line)**
-
-For quick testing or when Postman has issues:
-
-### Local Testing
+### Method 4: curl (Command Line)
 
 ```bash
-# Health Check
+# Local
 curl http://localhost:8000/health
+curl -X POST http://localhost:8000/identify -F "file=@image.jpg"
 
-# Root Endpoint
-curl http://localhost:8000/
-
-# Test Endpoint
-curl http://localhost:8000/test
-
-# Identify Plant
-curl -X POST http://localhost:8000/identify \
-  -F "file=@path/to/your/plant/image.jpg"
-```
-
-### Railway Testing
-
-```bash
-# Health Check
+# Railway
 curl https://YOUR-RAILWAY-URL.railway.app/health
-
-# Identify Plant
-curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
-  -F "file=@path/to/your/plant/image.jpg"
+curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify -F "file=@image.jpg"
 ```
-
-**Save response to file:**
-```bash
-curl -X POST http://localhost:8000/identify \
-  -F "file=@image.jpg" \
-  -o response.json
-```
-
----
-
-## 📝 **Testing Checklist**
-
-Use this checklist to verify all endpoints work:
-
-### Local Endpoints
-
-- [ ] **Health Check (Local)** - Returns `{"status": "healthy", "model_loaded": true}`
-- [ ] **Root Endpoint** - Returns API information
-- [ ] **Test Endpoint** - Returns test message
-- [ ] **Identify Plant (Local)** - Returns plant identification with Grad-CAM image
-
-### Railway Endpoints
-
-- [ ] **Health Check (Railway)** - Returns healthy status
-- [ ] **Identify Plant (Railway)** - Returns plant identification (or use curl if Postman fails)
-
-### Response Verification
-
-For `/identify` endpoint, verify response includes:
-- [ ] `plant_name` - Name of identified plant
-- [ ] `scientific_name` - Scientific name
-- [ ] `confidence` - Confidence score (0-1)
-- [ ] `all_predictions` - Array of top predictions
-- [ ] `gradcam_image` - Base64 encoded Grad-CAM heatmap
-- [ ] `method` - Should be `"grad-cam"`
-- [ ] `processing_time_ms` - Processing time in milliseconds
-
----
 
 ## 🐛 **Troubleshooting Postman Issues**
 
-### Issue: "Image bytes are empty"
-
-**Problem:** File not selected or wrong format in Postman
-
-**Solution:**
-1. Go to **Body** tab
-2. Select **form-data** (not raw or binary)
-3. For the `file` field, click dropdown and change from **"Text"** to **"File"**
-4. Click **"Select Files"** and choose an actual image file
-5. Don't use placeholder text like `path/to/image.jpg`
-
-### Issue: "Misordered multipart fields" (Railway only)
-
-**Problem:** Railway proxy has issues with Postman's multipart format
-
-**Solutions:**
-1. **Use curl instead** (recommended for Railway):
-   ```bash
-   curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
-     -F "file=@path/to/your/image.jpg"
-   ```
-
-2. **Use Postman for local testing only:**
-   - Test locally with Postman: `http://localhost:8000/identify`
-   - Test Railway with curl
-
-3. **Note:** This doesn't affect Flutter app - Flutter uses `http` package which works fine with Railway
-
-### Issue: Variables not working
-
-**Problem:** Variables like `{{railway_url}}` not replaced
-
-**Solution:**
-1. Make sure you're in the collection view
-2. Click on collection name → **Variables** tab
-3. Set **Current Value** (not just Initial Value)
-4. Save the collection
-5. Make sure variable name matches exactly (case-sensitive)
-
-### Issue: Can't import collection
-
-**Problem:** JSON file not importing
-
-**Solutions:**
-1. **Check file format:**
-   - Make sure file is valid JSON
-   - File should be `HerbaScan_API.postman_collection.json`
-
-2. **Try different import method:**
-   - Use **File → Import** instead of drag-and-drop
-   - Or use **Import → Upload Files**
-
-3. **Check Postman version:**
-   - Update to latest Postman version
-   - Old versions may not support latest collection format
-
-### Issue: Response is empty or error
-
-**Problem:** Server not running or wrong URL
-
-**Solutions:**
-1. **Check server is running:**
-   ```bash
-   # Local server should be running
-   python main.py
-   # Should see: "Uvicorn running on http://0.0.0.0:8000"
-   ```
-
-2. **Check URL:**
-   - Local: `http://localhost:8000`
-   - Railway: `https://your-url.railway.app`
-   - Make sure no trailing slash (except for root endpoint)
-
-3. **Check server logs:**
-   - Look at terminal where server is running
-   - Check for error messages
-
-### Issue: File upload not working in VS Code REST Client
-
-**Problem:** REST Client has limitations with file uploads
-
-**Solutions:**
-1. **Use Thunder Client** instead (better file upload support)
-2. **Use Postman desktop app** for file uploads
-3. **Use curl** for command-line testing:
-   ```bash
-   curl -X POST http://localhost:8000/identify \
-     -F "file=@path/to/image.jpg"
-   ```
-
----
-
-## 📚 **Additional Resources**
-
-### Postman Documentation
-
-- **Postman Learning Center**: [https://learning.postman.com/](https://learning.postman.com/)
-- **Import Collections**: [https://learning.postman.com/docs/getting-started/importing-and-exporting-data/](https://learning.postman.com/docs/getting-started/importing-and-exporting-data/)
-- **Using Variables**: [https://learning.postman.com/docs/sending-requests/variables/](https://learning.postman.com/docs/sending-requests/variables/)
-
-### VS Code Extensions
-
-- **REST Client**: [https://marketplace.visualstudio.com/items?itemName=humao.rest-client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)
-- **Thunder Client**: [https://marketplace.visualstudio.com/items?itemName=rangav.vscode-thunder-client](https://marketplace.visualstudio.com/items?itemName=rangav.vscode-thunder-client)
-
-### curl Documentation
-
-- **curl Manual**: [https://curl.se/docs/manual.html](https://curl.se/docs/manual.html)
-- **curl File Upload**: [https://curl.se/docs/manual.html#-F](https://curl.se/docs/manual.html#-F)
-
-## 📊 Model Requirements
-
-Your Keras model must have:
-- Input shape: `(None, 224, 224, 3)`
-- Output shape: `(None, num_classes)`
-- At least one convolutional layer for Grad-CAM
-
-**Recommended architecture:**
-- MobileNetV2 base + Dense layers
-- Last conv layer: `Conv_1` (or specify in code)
+| Issue | Solution |
+|-------|----------|
+| **Image bytes empty** | Use form-data, set file field to "File" (not "Text"), select actual image file |
+| **Multipart errors (Railway)** | Use `curl` for Railway testing, Postman works fine for local |
+| **Variables not working** | Set "Current Value" in collection variables tab, save collection |
+| **Can't import collection** | Check JSON format, use File → Import, update Postman version |
+| **Response empty/error** | Verify server running, check URL, review server logs |
+| **File upload in REST Client** | Use Thunder Client or Postman/curl for file uploads |
 
 ## 🐛 Troubleshooting
 
 ### Deployment Issues
 
-#### Build Failed
-
-**Check Railway logs:**
-1. Go to Railway dashboard
-2. Click **"Deployments"**
-3. Click the failed deployment
-4. Check logs for errors
-
-**Common issues:**
-- **Model file not found**: Make sure `mobilenetv2_rf.h5` is committed to git or uploaded to Railway volumes
-- **Out of memory**: Railway free tier has 512MB RAM limit. Consider upgrading or optimizing model.
-- **TensorFlow installation failed**: Check Dockerfile dependencies
-- **Docker build timeout**: Increase build timeout in Railway settings
-
-#### File Upload Errors
-
-**Error: "Image bytes are empty"**
-- ❌ **Problem**: You didn't select an actual file in Postman
-- ✅ **Solution**: 
-  1. In Postman form-data, make sure the dropdown next to key "file" says "File" (not "Text")
-  2. Click "Select Files" and choose a real .jpg or .png from your computer
-  3. Don't use placeholder text like "path/to/image.jpg"
-
-**Error: "Misordered multipart fields; files should follow 'map'"**
-- ❌ **Problem**: Railway proxy has issues with Postman's multipart format
-- ✅ **Solutions**:
-  1. Use `curl` instead of Postman:
-     ```bash
-     curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify \
-       -F "file=@path/to/your/image.jpg"
-     ```
-  2. ⚠️ **Note**: This Postman issue does NOT affect your Flutter app! The Flutter app uses the `http` package which works perfectly with Railway
-  3. For testing: Use Postman against `http://localhost:8000` OR use curl for Railway
-
-**Error: "cannot identify image file"**
-- ❌ **Problem**: File is corrupted or not a valid image
-- ✅ **Solution**: 
-  1. Try a different image file
-  2. Make sure it's .jpg, .png, .bmp, .webp, or .gif format
-  3. Check file isn't corrupted
+**Common Issues:**
+- **Build Failed:** Check Railway logs, verify model file committed/uploaded, check Dockerfile
+- **Model file not found:** Use Git LFS (<100MB) or Railway volumes (>100MB)
+- **Out of memory:** Railway free tier 512MB limit - upgrade or optimize model
+- **File upload errors:** Use curl for Railway, Postman works for local; verify file format (.jpg, .png, etc.)
 
 #### Model Not Loading in Railway
 
-If `/health` shows `"model_loaded": false`:
+**Quick Fixes:**
+1. Check Railway logs for errors
+2. Verify model file size (if >100MB, use Git LFS or Railway volumes)
+3. Upload model via Railway volumes if needed
+4. Check file permissions and Dockerfile
 
-1. **Check Railway logs** for error messages
-2. **Verify model file size**:
-   ```bash
-   # Check model file size
-   ls -lh backend/models/mobilenetv2_rf.h5
-   ```
-   - If > 100MB, git may not have uploaded it
-   - Use Git LFS or Railway volumes
+#### Slow Response Times / CORS Issues
 
-3. **Add model via Railway volumes:**
-   - Upload model directly to Railway
-   - Update `MODEL_PATH` to point to volume
+- **Cold start:** First request 10-30s, subsequent 2-4s
+- **CORS:** Enabled by default in `main.py`, verify Railway URL is correct
 
-4. **Check file permissions:**
-   - Ensure model files have read permissions
-   - Check Dockerfile copies models correctly
+#### Grad-CAM Layer Not Found / Out of Memory / Port Issues
 
-#### Slow Response Times
-
-- First request is always slower (cold start: 10-30 seconds)
-- Subsequent requests should be faster (2-4 seconds)
-- Consider using Railway Pro for better performance
-- Check Railway logs for memory issues
-
-#### CORS Issues
-
-If Flutter app can't connect:
-1. Check Railway URL is correct
-2. Verify CORS is enabled in `main.py` (it is by default)
-3. Try accessing API in browser first
-4. Check Flutter app logs for specific error messages
-
----
-
-### Local Development Issues
-
-#### Model Not Loading
-
-**Symptoms:**
-- Server shows `"model_loaded": false` in `/health` endpoint
-- Error: "Model file not found" or "Invalid model"
-
-**Solutions:**
-1. **Check file path:**
-   ```bash
-   ls -lh backend/models/mobilenetv2_rf.h5
-   # Should show file exists and has reasonable size
-   ```
-
-2. **Verify model file is not corrupted:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   print(model.summary())
-   ```
-
-3. **Check file permissions:**
-   ```bash
-   chmod 644 backend/models/mobilenetv2_rf.h5
-   ```
-
-4. **Check TensorFlow version:**
-   ```bash
-   pip show tensorflow
-   # Recommended: tensorflow==2.15.0 or tensorflow==2.13.0
-   ```
-
-#### Grad-CAM Layer Not Found
-
-**Symptoms:**
-- Error: "Layer not found" or "Grad-CAM computation failed"
-
-**Solutions:**
-1. **Find your model's last conv layer name:**
-   ```python
-   import tensorflow as tf
-   model = tf.keras.models.load_model('backend/models/mobilenetv2_rf.h5')
-   for layer in model.layers:
-       if 'conv' in layer.name.lower() or 'Conv2D' in str(type(layer)):
-           print(f"{layer.name}: {type(layer).__name__}")
-   ```
-
-2. **Update layer name in `main.py`:**
-   - Open `backend/utils/gradcam.py`
-   - Find the layer name variable
-   - Update to match your model's layer name
-
-3. **Check model architecture:**
-   - Ensure model has convolutional layers
-   - Verify model structure matches expected format
-
-#### Out of Memory
-
-**Symptoms:**
-- Error: "Out of memory" or "OOM"
-- Server crashes when processing images
-
-**Solutions:**
-1. **Reduce image size:**
-   - Edit `backend/utils/preprocessing.py`
-   - Reduce input image size (e.g., from 224x224 to 192x192)
-
-2. **Use model quantization:**
-   - Convert model to quantized TFLite
-   - Use smaller model architecture
-
-3. **Increase server memory:**
-   - For local: Close other applications
-   - For Railway: Upgrade to Pro plan
-
-4. **Optimize Grad-CAM computation:**
-   - Reduce batch size
-   - Process images one at a time
-
-#### Port Already in Use
-
-**Symptoms:**
-- Error: "Address already in use" or "Port 8000 is already in use"
-
-**Solutions:**
-1. **Find and kill process using port 8000:**
-   ```bash
-   # Windows
-   netstat -ano | findstr :8000
-   taskkill /PID <PID> /F
-   
-   # Mac/Linux
-   lsof -ti:8000 | xargs kill -9
-   ```
-
-2. **Use a different port:**
-   ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8001
-   ```
-
-#### Dependencies Installation Issues
-
-**Symptoms:**
-- Error: "Package not found" or "Installation failed"
-
-**Solutions:**
-1. **Update pip:**
-   ```bash
-   python -m pip install --upgrade pip
-   ```
-
-2. **Use virtual environment:**
-   ```bash
-   python -m venv venv
-   venv\Scripts\activate  # Windows
-   source venv/bin/activate  # Mac/Linux
-   pip install -r requirements.txt
-   ```
-
-3. **Check Python version:**
-   ```bash
-   python --version
-   # Recommended: Python 3.8-3.11
-   ```
-
-4. **Install specific TensorFlow version:**
-   ```bash
-   pip install tensorflow==2.15.0
-   ```
+**Quick Fixes:**
+- **Layer not found:** Find conv layer name, update `gradcam.py`, verify model architecture
+- **Out of memory:** Reduce image size, use quantization, upgrade Railway plan
+- **Port in use:** Kill process (`lsof -ti:8000 | xargs kill -9`) or use different port
+- **Dependencies:** Update pip, use virtual environment, check Python version (3.8-3.11), install TensorFlow 2.15.0
 
 ## 📝 Notes
 
