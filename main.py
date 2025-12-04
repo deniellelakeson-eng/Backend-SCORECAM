@@ -35,30 +35,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for model (loaded once at startup)
-model = None
+# Global variables for models (loaded once at startup)
+mobilenetv2_model = None
+herbascan_model = None
 labels = None
-MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
+HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
 LABELS_PATH = Path("models/labels.json")
 
 
 @app.on_event("startup")
-async def load_model():
-    """Load Keras model and labels on server startup."""
-    global model, labels
+async def load_models():
+    """Load both Keras models and labels on server startup."""
+    global mobilenetv2_model, herbascan_model, labels
     
     try:
-        print("🔄 Loading Keras model...")
+        print("🔄 Loading Keras models...")
         
-        # Check if model file exists
-        if not MODEL_PATH.exists():
-            print(f"⚠️  Model file not found at: {MODEL_PATH}")
-            print("📝 Please place your mobilenetv2_rf.h5 file in the models/ directory")
+        # Load MobileNetV2 model
+        if MOBILENETV2_MODEL_PATH.exists():
+            try:
+                mobilenetv2_model = tf.keras.models.load_model(str(MOBILENETV2_MODEL_PATH))
+                print(f"✅ MobileNetV2 model loaded successfully from {MOBILENETV2_MODEL_PATH}")
+            except Exception as e:
+                print(f"⚠️  Error loading MobileNetV2 model: {str(e)}")
+                print("📝 Continuing with herbascan_model only")
+        else:
+            print(f"⚠️  MobileNetV2 model file not found at: {MOBILENETV2_MODEL_PATH}")
+        
+        # Load HerbaScan model
+        if HERBASCAN_MODEL_PATH.exists():
+            try:
+                herbascan_model = tf.keras.models.load_model(str(HERBASCAN_MODEL_PATH))
+                print(f"✅ HerbaScan model loaded successfully from {HERBASCAN_MODEL_PATH}")
+            except Exception as e:
+                print(f"⚠️  Error loading HerbaScan model: {str(e)}")
+        else:
+            print(f"⚠️  HerbaScan model file not found at: {HERBASCAN_MODEL_PATH}")
+        
+        # Check if at least one model is loaded
+        if mobilenetv2_model is None and herbascan_model is None:
+            print("❌ No models loaded! Please ensure at least one .keras model exists in models/ directory")
             return
-        
-        # Load model
-        model = tf.keras.models.load_model(str(MODEL_PATH))
-        print(f"✅ Model loaded successfully from {MODEL_PATH}")
         
         # Load labels
         if LABELS_PATH.exists():
@@ -72,7 +90,7 @@ async def load_model():
             labels = {str(i): f"Plant_{i}" for i in range(40)}
         
     except Exception as e:
-        print(f"❌ Error loading model: {str(e)}")
+        print(f"❌ Error loading models: {str(e)}")
         print("📝 Server will start, but /identify endpoint will not work")
 
 
@@ -83,7 +101,9 @@ async def root():
         "service": "HerbaScan Grad-CAM API",
         "version": "1.0.0",
         "status": "running",
-        "model_loaded": model is not None,
+        "mobilenetv2_loaded": mobilenetv2_model is not None,
+        "herbascan_loaded": herbascan_model is not None,
+        "models_loaded": (mobilenetv2_model is not None) or (herbascan_model is not None),
         "endpoints": {
             "health": "/health",
             "identify": "/identify (POST)",
@@ -97,7 +117,9 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "model_loaded": model is not None,
+        "mobilenetv2_loaded": mobilenetv2_model is not None,
+        "herbascan_loaded": herbascan_model is not None,
+        "models_loaded": (mobilenetv2_model is not None) or (herbascan_model is not None),
         "labels_loaded": labels is not None,
         "num_classes": len(labels) if labels else 0
     }
@@ -108,9 +130,12 @@ async def test_endpoint():
     """Test endpoint for debugging."""
     return {
         "message": "HerbaScan API is working!",
-        "model_status": "loaded" if model is not None else "not loaded",
-        "model_path": str(MODEL_PATH),
-        "model_exists": MODEL_PATH.exists(),
+        "mobilenetv2_status": "loaded" if mobilenetv2_model is not None else "not loaded",
+        "herbascan_status": "loaded" if herbascan_model is not None else "not loaded",
+        "mobilenetv2_path": str(MOBILENETV2_MODEL_PATH),
+        "herbascan_path": str(HERBASCAN_MODEL_PATH),
+        "mobilenetv2_exists": MOBILENETV2_MODEL_PATH.exists(),
+        "herbascan_exists": HERBASCAN_MODEL_PATH.exists(),
         "labels_count": len(labels) if labels else 0
     }
 
@@ -135,11 +160,11 @@ async def identify_plant(file: UploadFile = File(...)):
     """
     start_time = time.time()
     
-    # Check if model is loaded
-    if model is None:
+    # Check if at least one model is loaded
+    if mobilenetv2_model is None and herbascan_model is None:
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded. Please check server logs."
+            detail="No models loaded. Please check server logs."
         )
     
     try:
@@ -164,25 +189,72 @@ async def identify_plant(file: UploadFile = File(...)):
         if original_image.mode != 'RGB':
             original_image = original_image.convert('RGB')
         
-        # Run inference
-        predictions = model.predict(img_array, verbose=0)
-        predictions = predictions[0]  # Remove batch dimension
+        # Run inference on both models and select the best result
+        best_predictions = None
+        best_model = None
+        best_confidence = -1.0
+        best_class_idx = -1
+        model_name_used = None
+        
+        # Try MobileNetV2 model
+        if mobilenetv2_model is not None:
+            try:
+                preds = mobilenetv2_model.predict(img_array, verbose=0)
+                preds = preds[0]  # Remove batch dimension
+                max_idx = np.argmax(preds)
+                max_conf = float(preds[max_idx])
+                
+                if max_conf > best_confidence:
+                    best_predictions = preds
+                    best_model = mobilenetv2_model
+                    best_confidence = max_conf
+                    best_class_idx = max_idx
+                    model_name_used = "MobileNetV2"
+                    print(f"📊 MobileNetV2 prediction: class {max_idx}, confidence {max_conf:.4f}")
+            except Exception as e:
+                print(f"⚠️  Error running MobileNetV2 inference: {str(e)}")
+        
+        # Try HerbaScan model
+        if herbascan_model is not None:
+            try:
+                preds = herbascan_model.predict(img_array, verbose=0)
+                preds = preds[0]  # Remove batch dimension
+                max_idx = np.argmax(preds)
+                max_conf = float(preds[max_idx])
+                
+                if max_conf > best_confidence:
+                    best_predictions = preds
+                    best_model = herbascan_model
+                    best_confidence = max_conf
+                    best_class_idx = max_idx
+                    model_name_used = "HerbaScan"
+                    print(f"📊 HerbaScan model prediction: class {max_idx}, confidence {max_conf:.4f}")
+            except Exception as e:
+                print(f"⚠️  Error running HerbaScan inference: {str(e)}")
+        
+        if best_predictions is None or best_model is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to run inference on any model"
+            )
+        
+        print(f"✅ Using {model_name_used} model (confidence: {best_confidence:.4f})")
         
         # Get top 3 predictions
-        top_3_indices = np.argsort(predictions)[-3:][::-1]
+        top_3_indices = np.argsort(best_predictions)[-3:][::-1]
         
         # Get predicted class (highest confidence)
-        predicted_class_idx = top_3_indices[0]
+        predicted_class_idx = best_class_idx
         predicted_class_name = labels.get(str(predicted_class_idx), f"Plant_{predicted_class_idx}")
-        confidence = float(predictions[predicted_class_idx])
+        confidence = best_confidence
         
-        # Generate Grad-CAM
+        # Generate Grad-CAM using the best model (auto-detects last conv layer)
         gradcam_result = generate_gradcam_for_image(
-            model=model,
+            model=best_model,
             img_array=img_array,
             original_image=original_image,
             class_idx=predicted_class_idx,
-            layer_name='Conv_1'  # Adjust based on your model architecture
+            layer_name=None  # Auto-detect last conv layer
         )
         
         # Convert overlay image to base64
@@ -211,6 +283,7 @@ async def identify_plant(file: UploadFile = File(...)):
             "all_predictions": all_predictions,
             "gradcam_image": gradcam_base64,
             "method": "grad-cam",
+            "model_used": model_name_used,
             "processing_time_ms": round(processing_time, 2)
         }
         
@@ -230,7 +303,8 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     
     print("🌿 Starting HerbaScan Grad-CAM API...")
-    print(f"📂 Model path: {MODEL_PATH}")
+    print(f"📂 MobileNetV2 model path: {MOBILENETV2_MODEL_PATH}")
+    print(f"📂 HerbaScan model path: {HERBASCAN_MODEL_PATH}")
     print(f"📂 Labels path: {LABELS_PATH}")
     print(f"🌐 Starting on port {port}")
     

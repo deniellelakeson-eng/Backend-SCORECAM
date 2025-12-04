@@ -1,8 +1,8 @@
 # HerbaScan Backend - Quick Start Guide
 
 **Last Updated**: December 2025  
-**Backend Version**: 0.5.0  
-**Flutter App Version**: v0.5.8
+**Backend Version**: 0.7.6  
+**Flutter App Version**: v0.7.6
 
 ## ✅ **What's Complete**
 
@@ -10,9 +10,9 @@ Your backend is **100% ready** to deploy! All code is written and tested.
 
 ```
 ✅ Python backend code complete
-✅ Model files in place (mobilenetv2_rf.h5, labels.json)
+✅ Dual model architecture support (MobileNetV2_model.keras, herbascan_model.keras)
 ✅ Docker configuration ready
-✅ Railway deployment config ready
+✅ Railway deployment config ready (Procfile added)
 ✅ API documentation complete
 ✅ Postman testing collection ready
 ```
@@ -26,8 +26,11 @@ Before deploying, make sure you have:
 - ✅ Railway account ([signup here](https://railway.app))
 - ✅ GitHub account
 - ✅ Model files in `backend/models/` directory:
-  - `mobilenetv2_rf.h5` (your trained Keras model)
-  - `labels.json` (plant class labels)
+  - `MobileNetV2_model.keras` (MobileNetV2 architecture model - `.keras` format)
+  - `herbascan_model.keras` (Custom HerbaScan architecture model - `.keras` format)
+  - `labels.json` (plant class labels - optional, for backward compatibility)
+  
+  **Note:** At least one `.keras` model must be present. The backend will automatically use both models and select the result with highest confidence.
 
 ---
 
@@ -123,18 +126,24 @@ final response = await http.post(
 
 When you have a new trained model:
 
-1. **Replace model files:**
+1. **Replace model files (`.keras` format):**
    ```bash
-   # Backup old model (optional)
-   cp backend/models/mobilenetv2_rf.h5 backend/models/mobilenetv2_rf.h5.backup
+   # Backup old models (optional)
+   cp backend/models/MobileNetV2_model.keras backend/models/MobileNetV2_model.keras.backup
+   cp backend/models/herbascan_model.keras backend/models/herbascan_model.keras.backup
    
-   # Copy new model
-   cp /path/to/your/new_model.h5 backend/models/mobilenetv2_rf.h5
+   # Copy new models
+   cp /path/to/your/new_mobilenetv2_model.keras backend/models/MobileNetV2_model.keras
+   cp /path/to/your/new_herbascan_model.keras backend/models/herbascan_model.keras
    ```
 
-2. **Update labels.json (if classes changed):**
+2. **Update labels (if classes changed):**
    ```bash
-   # Edit labels.json to match your new model's classes
+   # Backend labels (index:name format)
+   # Edit backend/models/labels.json
+   
+   # Frontend labels (name:index format)
+   # Edit assets/models/class_indices.json
    ```
 
 3. **Test locally:**
@@ -146,28 +155,40 @@ When you have a new trained model:
 4. **Regenerate Flutter assets (Phase 2):**
    ```bash
    cd backend
+   
+   # Option A: Update scripts to use .keras (recommended)
+   # Edit extract_cam_weights.py: Change MODEL_PATH to models/MobileNetV2_model.keras
+   # Edit create_multi_output_tflite.py: Change MODEL_PATH to models/MobileNetV2_model.keras
+   
+   # Option B: Convert .keras to .h5 temporarily
+   python -c "import tensorflow as tf; model = tf.keras.models.load_model('models/MobileNetV2_model.keras'); model.save('models/mobilenetv2_rf.h5', save_format='h5')"
+   
+   # Run extraction scripts
    python extract_cam_weights.py
    python create_multi_output_tflite.py
    
    # Copy to Flutter assets
    cp models/cam_weights.json ../assets/models/
    cp models/mobilenetv2_multi_output.tflite ../assets/models/
-   cp models/labels.json ../assets/models/
+   # Note: Frontend uses class_indices.json, not labels.json
    ```
 
 5. **Update Flutter pubspec.yaml:**
    ```yaml
    flutter:
      assets:
-       - assets/models/cam_weights.json
-       - assets/models/mobilenetv2_multi_output.tflite
-       - assets/models/labels.json
+       - assets/models/
+       # This includes all files in assets/models/:
+       # - MobileNetV2_model.tflite
+       # - herbascan_model.tflite
+       # - class_indices.json
+       # - cam_weights.json
    ```
 
 6. **Redeploy to Railway:**
    ```bash
-   git add backend/models/mobilenetv2_rf.h5 backend/models/labels.json
-   git commit -m "Update model to v2.0"
+   git add backend/models/MobileNetV2_model.keras backend/models/herbascan_model.keras
+   git commit -m "Update models to v2.0"
    git push
    # Railway will automatically redeploy
    ```
@@ -186,9 +207,10 @@ When you have a new trained model:
 
 ### **Model Not Loading?**
 - Railway logs will show error
-- Verify `mobilenetv2_rf.h5` and `labels.json` are in `models/` folder
+- Verify at least one `.keras` model exists: `MobileNetV2_model.keras` or `herbascan_model.keras`
 - Check file permissions
 - For large models (>100MB), use Railway volumes or Git LFS
+- Backend supports both models - will use whichever is available
 
 ### **API Slow?**
 - First request always slower (cold start: 10-30 seconds)
@@ -258,6 +280,14 @@ Once deployed, you have:
 3. **Phase 2 - Offline CAM Preparation:**
    ```bash
    cd backend
+   
+   # Option A: Update scripts to use .keras (recommended)
+   # Edit extract_cam_weights.py: Change MODEL_PATH to models/MobileNetV2_model.keras
+   # Edit create_multi_output_tflite.py: Change MODEL_PATH to models/MobileNetV2_model.keras
+   
+   # Option B: Convert .keras to .h5 temporarily
+   python -c "import tensorflow as tf; model = tf.keras.models.load_model('models/MobileNetV2_model.keras'); model.save('models/mobilenetv2_rf.h5', save_format='h5')"
+   
    # Extract CAM weights
    python extract_cam_weights.py
    # Create multi-output TFLite model
@@ -267,6 +297,7 @@ Once deployed, you have:
    cp models/mobilenetv2_multi_output.tflite ../assets/models/
    ```
    - See `/backend/README.md` → "Phase 2: Model Extraction & Conversion" for detailed steps
+   - **Note:** Frontend uses `assets/models/class_indices.json` (name:index format), not `labels.json`
 
 4. **Monitor Performance:**
    - Check Railway logs for errors
@@ -303,6 +334,10 @@ railway logs
 
 ### Model Updates
 ```bash
+# Update scripts to use .keras (or convert .keras to .h5 temporarily)
+# Edit extract_cam_weights.py: MODEL_PATH = "models/MobileNetV2_model.keras"
+# Edit create_multi_output_tflite.py: MODEL_PATH = "models/MobileNetV2_model.keras"
+
 # Extract CAM weights
 python extract_cam_weights.py
 
@@ -312,6 +347,7 @@ python create_multi_output_tflite.py
 # Copy to Flutter assets
 cp models/cam_weights.json ../assets/models/
 cp models/mobilenetv2_multi_output.tflite ../assets/models/
+# Note: Frontend uses class_indices.json (name:index), not labels.json (index:name)
 ```
 
 ---

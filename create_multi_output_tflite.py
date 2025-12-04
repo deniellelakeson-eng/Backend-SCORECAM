@@ -13,7 +13,10 @@ import numpy as np
 from pathlib import Path
 
 # Configuration
-MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+# Try .keras models first, then fallback to .h5
+MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
+HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
+LEGACY_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
 OUTPUT_PATH = Path("models/mobilenetv2_multi_output.tflite")
 
 def find_last_conv_layer(model):
@@ -339,19 +342,19 @@ def convert_to_tflite(model, output_path):
                         return True
                         
                     except Exception as e5:
-                print(f"      ❌ ERROR: All conversion methods failed")
+                        print(f"      ❌ ERROR: All conversion methods failed")
                         print(f"      TensorFlow version: {tf.__version__}")
                         print(f"      Last error: {e5}")
                         print(f"      Error type: {type(e5).__name__}")
-                import traceback
-                traceback.print_exc()
+                        import traceback
+                        traceback.print_exc()
                         print(f"\n      💡 TROUBLESHOOTING:")
                         print(f"      1. Your TensorFlow version ({tf.__version__}) may be incompatible")
                         print(f"      2. Try: pip install tensorflow==2.15.0")
                         print(f"      3. Or: pip install tensorflow==2.13.0")
                         print(f"      4. Then rerun this script")
                         print(f"      5. Make sure you're using TensorFlow 2.x (not 3.x)")
-                return False
+                        return False
 
 def verify_tflite_model(tflite_path):
     """Verify the TFLite model structure."""
@@ -400,7 +403,7 @@ def verify_tflite_model(tflite_path):
             print(f"      ✅ Output 0 is predictions: {output0_shape}")
             print(f"      ✅ Output 1 is feature maps: {output1_shape}")
             print(f"      Note: Flutter code will handle this automatically.")
-        return True
+            return True
         else:
             print(f"      ❌ ERROR: Cannot identify feature maps and predictions!")
             print(f"      Expected: One 4D output [1, H, W, C] and one 2D output [1, num_classes]")
@@ -419,16 +422,31 @@ def create_multi_output_tflite():
     print("Phase 2.2: Creating Multi-Output TFLite Model")
     print("=" * 60)
     
-    # Check if model exists
-    if not MODEL_PATH.exists():
-        print(f"ERROR: Model file not found at: {MODEL_PATH}")
-        print(f"Please place mobilenetv2_rf.h5 in the models/ directory")
+    # Try to find a model file (prefer .keras, fallback to .h5)
+    model_path = None
+    model_name = None
+    
+    if MOBILENETV2_MODEL_PATH.exists():
+        model_path = MOBILENETV2_MODEL_PATH
+        model_name = "MobileNetV2"
+    elif HERBASCAN_MODEL_PATH.exists():
+        model_path = HERBASCAN_MODEL_PATH
+        model_name = "HerbaScan"
+    elif LEGACY_MODEL_PATH.exists():
+        model_path = LEGACY_MODEL_PATH
+        model_name = "Legacy (mobilenetv2_rf)"
+    else:
+        print(f"ERROR: No model file found!")
+        print(f"Please place one of the following in the models/ directory:")
+        print(f"  - {MOBILENETV2_MODEL_PATH}")
+        print(f"  - {HERBASCAN_MODEL_PATH}")
+        print(f"  - {LEGACY_MODEL_PATH}")
         return False
     
     try:
         # Load model
-        print(f"\n[1/5] Loading model from: {MODEL_PATH}")
-        model = tf.keras.models.load_model(str(MODEL_PATH))
+        print(f"\n[1/5] Loading {model_name} model from: {model_path}")
+        model = tf.keras.models.load_model(str(model_path))
         print("      Model loaded successfully!")
         print(f"      Input shape: {model.input_shape}")
         print(f"      Output shape: {model.output_shape}")
@@ -444,10 +462,10 @@ def create_multi_output_tflite():
         # Create multi-output model
         print(f"\n[3/5] Creating multi-output model...")
         try:
-        multi_output_model = create_multi_output_model(model, conv_layer_name)
+            multi_output_model = create_multi_output_model(model, conv_layer_name)
             print("      ✅ Multi-output model created!")
-        print(f"      Output 0 (features) shape: {multi_output_model.output[0].shape}")
-        print(f"      Output 1 (predictions) shape: {multi_output_model.output[1].shape}")
+            print(f"      Output 0 (features) shape: {multi_output_model.output[0].shape}")
+            print(f"      Output 1 (predictions) shape: {multi_output_model.output[1].shape}")
             
             # Verify both outputs are accessible
             if len(multi_output_model.outputs) != 2:

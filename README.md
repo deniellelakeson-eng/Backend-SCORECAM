@@ -1,8 +1,8 @@
 # HerbaScan Backend API
 
 **Last Updated**: December 2025  
-**Backend Version**: 0.5.0  
-**Flutter App Version**: v0.5.8
+**Backend Version**: 0.7.6  
+**Flutter App Version**: v0.7.6
 
 FastAPI server for true Grad-CAM (Gradient-weighted Class Activation Mapping) computation using TensorFlow.
 
@@ -18,15 +18,19 @@ Place the following files in the `models/` directory:
 
 ```
 backend/models/
-├── mobilenetv2_rf.h5    ← Your trained Keras model (.h5 file)
-└── labels.json          ← Plant class labels
+├── MobileNetV2_model.keras    ← MobileNetV2 architecture model (.keras format)
+├── herbascan_model.keras      ← Custom HerbaScan architecture model (.keras format)
+└── labels.json                ← Plant class labels (optional, for backward compatibility)
 ```
 
 **Where to get these files:**
-- `mobilenetv2_rf.h5`: Your trained model from your AI training workflow
-- `labels.json`: Your class labels in JSON format
+- `MobileNetV2_model.keras`: MobileNetV2 architecture model (`.keras` format)
+- `herbascan_model.keras`: Custom HerbaScan architecture model (`.keras` format)
+- `labels.json`: Class labels in JSON format (optional, backend can work without it)
 
-**labels.json format example:**
+**Note:** The backend now supports **dual model architecture**. It will load both models and automatically select the result with highest confidence. At least one model must be present.
+
+**labels.json format example (backend format - index:name):**
 ```json
 {
   "0": "10Coleus scutellarioides(CS)",
@@ -37,7 +41,20 @@ backend/models/
   "39": "9Centella asiatica(CA)"
 }
 ```
-*(Your dataset has 40 Philippine medicinal plant species)*
+
+**Frontend labels format (assets/models/class_indices.json - name:index):**
+```json
+{
+  "Adelfa": 0,
+  "Akapulko": 1,
+  "Alagaw": 2,
+  ...
+  "YerbaBuena": 41
+}
+```
+
+**Important:** The frontend uses `assets/models/class_indices.json` with format `name:index`, while the backend uses `backend/models/labels.json` with format `index:name`. Both formats are supported.
+*(Your dataset has 40-42 Philippine medicinal plant species)*
 
 ---
 
@@ -49,25 +66,38 @@ When you have a new trained model or updated labels:
 
 #### Step 1: Update Model Files
 
-1. **Replace the model file:**
+1. **Replace the model files (`.keras` format):**
    ```bash
-   # Backup old model (optional)
-   cp backend/models/mobilenetv2_rf.h5 backend/models/mobilenetv2_rf.h5.backup
+   # Backup old models (optional)
+   cp backend/models/MobileNetV2_model.keras backend/models/MobileNetV2_model.keras.backup
+   cp backend/models/herbascan_model.keras backend/models/herbascan_model.keras.backup
    
-   # Copy new model
-   cp /path/to/your/new_model.h5 backend/models/mobilenetv2_rf.h5
+   # Copy new models
+   cp /path/to/your/new_mobilenetv2_model.keras backend/models/MobileNetV2_model.keras
+   cp /path/to/your/new_herbascan_model.keras backend/models/herbascan_model.keras
    ```
+
+   **Note:** You can update just one model if needed. The backend will use whichever models are available.
 
 2. **Update labels.json (if classes changed):**
    ```bash
-   # Edit labels.json to match your new model's classes
+   # Edit backend/models/labels.json to match your new model's classes
+   # Format: {"0": "PlantName1", "1": "PlantName2", ...}
    # Make sure class indices match the model's output
    ```
 
-3. **Verify model compatibility:**
+3. **Update frontend labels (if classes changed):**
+   ```bash
+   # Edit assets/models/class_indices.json
+   # Format: {"PlantName1": 0, "PlantName2": 1, ...}
+   # This is the reverse format (name:index instead of index:name)
+   ```
+
+4. **Verify model compatibility:**
    - Input shape must be: `(224, 224, 3)`
    - Output shape must be: `(num_classes,)`
    - Model must have at least one convolutional layer for Grad-CAM
+   - Format: `.keras` (TensorFlow Keras SavedModel format)
 
 #### Step 2: Test Locally
 
@@ -76,8 +106,12 @@ When you have a new trained model or updated labels:
 venv\Scripts\activate  # Windows
 # source venv/bin/activate  # Mac/Linux
 
-# Test model loading
-python -c "import tensorflow as tf; model = tf.keras.models.load_model('models/mobilenetv2_rf.h5'); print('Model loaded!'); print(f'Input: {model.input_shape}'); print(f'Output: {model.output_shape}')"
+# Test model loading (try both models)
+python -c "import tensorflow as tf; from pathlib import Path; \
+m1 = Path('models/MobileNetV2_model.keras'); \
+m2 = Path('models/herbascan_model.keras'); \
+if m1.exists(): model = tf.keras.models.load_model(str(m1)); print('MobileNetV2 loaded!'); print(f'Input: {model.input_shape}'); print(f'Output: {model.output_shape}'); \
+if m2.exists(): model = tf.keras.models.load_model(str(m2)); print('HerbaScan loaded!'); print(f'Input: {model.input_shape}'); print(f'Output: {model.output_shape}')"
 
 # Run server and test
 python main.py
@@ -87,8 +121,24 @@ curl http://localhost:8000/health
 
 #### Step 3: Regenerate Offline CAM Files (Phase 2)
 
-If you updated the model, you need to regenerate the offline CAM files for the Flutter app:
+If you updated the models, you need to regenerate the offline CAM files for the Flutter app:
 
+**Important:** The extraction scripts (`extract_cam_weights.py` and `create_multi_output_tflite.py`) currently support `.h5` format. To use with `.keras` models:
+
+**Option A: Update Scripts to Support .keras**
+1. Edit `extract_cam_weights.py` and `create_multi_output_tflite.py`
+2. Change `MODEL_PATH` from `models/mobilenetv2_rf.h5` to `models/MobileNetV2_model.keras` (or `models/herbascan_model.keras`)
+3. The scripts use `tf.keras.models.load_model()` which supports both `.h5` and `.keras` formats
+
+**Option B: Convert .keras to .h5 Temporarily**
+```bash
+# Convert .keras to .h5 for extraction scripts
+python -c "import tensorflow as tf; \
+model = tf.keras.models.load_model('models/MobileNetV2_model.keras'); \
+model.save('models/mobilenetv2_rf.h5', save_format='h5')"
+```
+
+Then run extraction scripts:
 ```bash
 cd backend
 
@@ -101,23 +151,32 @@ python create_multi_output_tflite.py
 # Output: backend/models/mobilenetv2_multi_output.tflite
 ```
 
+**Note:** For dual model support, you may need to run extraction for both models and merge the results, or use the primary model (MobileNetV2) for CAM extraction.
+
 #### Step 4: Update Flutter Assets & Redeploy Backend
 
 **Copy generated files to Flutter assets:**
 ```bash
 cp backend/models/cam_weights.json assets/models/
 cp backend/models/mobilenetv2_multi_output.tflite assets/models/
-cp backend/models/labels.json assets/models/
+# Note: Frontend uses class_indices.json (name:index format), not labels.json
+# If you need to update frontend labels, edit assets/models/class_indices.json directly
 ```
 
 **Update `pubspec.yaml` to include:**
 ```yaml
 flutter:
   assets:
-    - assets/models/cam_weights.json
-    - assets/models/mobilenetv2_multi_output.tflite
-    - assets/models/labels.json
+    - assets/models/
+    # This includes all files in assets/models/:
+    # - MobileNetV2_model.tflite
+    # - herbascan_model.tflite
+    # - class_indices.json
+    # - cam_weights.json
+    # - mobilenetv2_multi_output.tflite (if using multi-output model)
 ```
+
+**Important:** The frontend uses `assets/models/class_indices.json` (format: `{"PlantName": index}`), not `backend/models/labels.json` (format: `{"index": "PlantName"}`). Update `class_indices.json` if class mappings change.
 
 **Rebuild Flutter app:**
 ```bash
@@ -128,10 +187,10 @@ flutter clean && flutter pub get && flutter run
 
 If deployed to Railway, update the deployment:
 
-**Option A: Using Git (if model is committed)**
+**Option A: Using Git (if models are committed)**
 ```bash
-git add backend/models/mobilenetv2_rf.h5 backend/models/labels.json
-git commit -m "Update model to v2.0"
+git add backend/models/MobileNetV2_model.keras backend/models/herbascan_model.keras backend/models/labels.json
+git commit -m "Update models to v2.0"
 git push
 # Railway will automatically redeploy
 ```
@@ -164,15 +223,25 @@ Phase 2 prepares your trained Keras model for offline use in the Flutter app by:
 - The Flutter app needs a TFLite model with both feature maps and predictions as outputs
 - The original Keras model only has predictions, so we need to extract intermediate layers
 
+**Important Notes for .keras Models:**
+- The extraction scripts (`extract_cam_weights.py` and `create_multi_output_tflite.py`) currently reference `.h5` format
+- To use with `.keras` models, either:
+  1. Update `MODEL_PATH` in both scripts to point to your `.keras` file (recommended)
+  2. Convert `.keras` to `.h5` temporarily: `model.save('models/mobilenetv2_rf.h5', save_format='h5')`
+- `tf.keras.models.load_model()` supports both `.keras` and `.h5` formats natively
+
 ---
 
 #### Prerequisites
 
 Before running the scripts, ensure you have:
 
-1. **Model file in place:**
+1. **Model files in place:**
    ```bash
-   # Verify model exists
+   # Verify models exist (at least one required)
+   ls -lh backend/models/MobileNetV2_model.keras
+   ls -lh backend/models/herbascan_model.keras
+   # Or if using .h5 format for extraction scripts:
    ls -lh backend/models/mobilenetv2_rf.h5
    ```
 
@@ -211,8 +280,13 @@ python extract_cam_weights.py
 **What the script does:**
 
 1. **Loads the Keras model:**
-   - Reads `models/mobilenetv2_rf.h5`
+   - Reads `models/mobilenetv2_rf.h5` (or `models/MobileNetV2_model.keras` if script is updated)
    - Verifies the model can be loaded
+   - **Note:** To use with `.keras` models, update `MODEL_PATH` in `extract_cam_weights.py`:
+     ```python
+     MODEL_PATH = Path("models/MobileNetV2_model.keras")  # or herbascan_model.keras
+     ```
+   - `tf.keras.models.load_model()` supports both `.keras` and `.h5` formats
 
 2. **Finds the classification layer:**
    - Searches for layers with names like: `predictions`, `dense`, `dense_1`, `fc`, `classifier`, `output`, `softmax`, `dense_final`
@@ -234,7 +308,7 @@ python extract_cam_weights.py
 Phase 2.1: Extracting CAM Weights
 ============================================================
 
-[1/4] Loading model from: models/mobilenetv2_rf.h5
+[1/4] Loading model from: models/MobileNetV2_model.keras (or models/mobilenetv2_rf.h5)
       Model loaded successfully!
 
 [2/4] Finding classification layer...
@@ -301,8 +375,13 @@ python create_multi_output_tflite.py
 **What the script does:**
 
 1. **Loads the Keras model:**
-   - Reads `models/mobilenetv2_rf.h5`
+   - Reads `models/mobilenetv2_rf.h5` (or `models/MobileNetV2_model.keras` if script is updated)
    - Verifies the model can be loaded
+   - **Note:** To use with `.keras` models, update `MODEL_PATH` in `create_multi_output_tflite.py`:
+     ```python
+     MODEL_PATH = Path("models/MobileNetV2_model.keras")  # or herbascan_model.keras
+     ```
+   - `tf.keras.models.load_model()` supports both `.keras` and `.h5` formats
 
 2. **Finds the last convolutional layer:**
    - Scans all layers to find convolutional layers (Conv2D, DepthwiseConv2D, SeparableConv2D)
@@ -340,7 +419,7 @@ python create_multi_output_tflite.py
 Phase 2.2: Creating Multi-Output TFLite Model
 ============================================================
 
-[1/5] Loading model from: models/mobilenetv2_rf.h5
+[1/5] Loading model from: models/MobileNetV2_model.keras (or models/mobilenetv2_rf.h5)
       Model loaded successfully!
       Input shape: (None, 224, 224, 3)
       Output shape: (None, 40)
@@ -557,7 +636,7 @@ python create_multi_output_tflite.py
 - **Input shape:** Must be `(224, 224, 3)`
 - **Output shape:** Must be `(num_classes,)` where `num_classes` matches your dataset
 - **Architecture:** Must have at least one convolutional layer
-- **Format:** Keras H5 format (`.h5`)
+- **Format:** Keras SavedModel format (`.keras`) - **NEW** - Supports both `.keras` and `.h5` formats
 
 #### TFLite Conversion Notes
 
@@ -688,10 +767,12 @@ git push
    ```bash
    # Install Git LFS
    git lfs install
-   git lfs track "*.h5"
+   git lfs track "*.keras"
+   git lfs track "*.h5"  # If still using .h5 format
    git add .gitattributes
-   git add models/mobilenetv2_rf.h5
-   git commit -m "Add model file via Git LFS"
+   git add models/MobileNetV2_model.keras
+   git add models/herbascan_model.keras
+   git commit -m "Add model files via Git LFS"
    git push
    ```
 
@@ -701,7 +782,8 @@ git push
    - Upload model files via Railway CLI:
      ```bash
      railway volumes create
-     railway volumes upload models/mobilenetv2_rf.h5
+     railway volumes upload models/MobileNetV2_model.keras
+     railway volumes upload models/herbascan_model.keras
      railway volumes upload models/labels.json
      ```
    - Update `MODEL_PATH` and `LABELS_PATH` in code to point to volume
@@ -858,11 +940,14 @@ Main endpoint for plant identification with Grad-CAM.
 Create a `.env` file (optional):
 
 ```env
-MODEL_PATH=models/mobilenetv2_rf.h5
+MOBILENETV2_MODEL_PATH=models/MobileNetV2_model.keras
+HERBASCAN_MODEL_PATH=models/herbascan_model.keras
 LABELS_PATH=models/labels.json
 PORT=8000
 HOST=0.0.0.0
 ```
+
+**Note:** The backend automatically loads both models if available. Environment variables are optional - defaults are set in `main.py`.
 
 ## 🧪 Testing with Postman
 
@@ -949,12 +1034,13 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify -F "file=@image.jpg"
 
 ### Model File Management
 
-- **Model files (`.h5`) are typically NOT committed to git** (too large, >100MB)
+- **Model files (`.keras` or `.h5`) are typically NOT committed to git** (too large, >100MB)
 - **Options for deployment:**
   - Use Git LFS for models < 100MB
   - Use Railway volumes for large models
   - Upload to cloud storage (S3, GCS) and download on startup
   - Include in Docker image if < 100MB
+- **Dual Model Support:** Backend supports both `MobileNetV2_model.keras` and `herbascan_model.keras`. At least one must be present.
 
 ### TensorFlow Compatibility
 

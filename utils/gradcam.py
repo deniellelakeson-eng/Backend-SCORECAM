@@ -17,35 +17,62 @@ class GradCAMGenerator:
     which regions of the input image were most important for the classification.
     """
     
-    def __init__(self, model, layer_name: str = 'Conv_1'):
+    def __init__(self, model, layer_name: str = None):
         """
         Initialize Grad-CAM generator.
         
         Args:
             model: Trained Keras model
-            layer_name: Name of the last convolutional layer to use for Grad-CAM
+            layer_name: Name of the last convolutional layer to use for Grad-CAM.
+                       If None or 'auto', will auto-detect the last conv layer.
         """
         self.model = model
-        self.layer_name = layer_name
+        self.layer_name = layer_name if layer_name and layer_name != 'auto' else None
         self.grad_model = self._create_grad_model()
     
     def _create_grad_model(self):
         """
         Create gradient model that outputs both the target layer activations
         and the final predictions.
+        Dynamically identifies the last convolutional layer for different model architectures.
         """
-        try:
-            target_layer = self.model.get_layer(self.layer_name)
-        except ValueError:
-            # If layer not found, try to find the last conv layer automatically
+        # First, try to find the last convolutional layer automatically
+        # This works for both MobileNetV2 and custom herbascan_model architectures
+        target_layer = None
+        last_conv_layer = None
+        
+        # Search for the last convolutional layer
+        for layer in reversed(self.model.layers):
+            # Check if it's a convolutional layer (Conv2D, DepthwiseConv2D, etc.)
+            if isinstance(layer, (tf.keras.layers.Conv2D, 
+                                  tf.keras.layers.DepthwiseConv2D,
+                                  tf.keras.layers.SeparableConv2D)):
+                last_conv_layer = layer
+                break
+        
+        # If no conv layer found by type, try by name
+        if last_conv_layer is None:
             for layer in reversed(self.model.layers):
-                if 'conv' in layer.name.lower():
-                    target_layer = layer
-                    self.layer_name = layer.name
-                    print(f"Using layer: {self.layer_name}")
+                if 'conv' in layer.name.lower() or 'Conv' in layer.name:
+                    last_conv_layer = layer
                     break
-            else:
-                raise ValueError(f"Could not find convolutional layer: {self.layer_name}")
+        
+        # Use the found layer or try the specified layer_name
+        if last_conv_layer is not None:
+            target_layer = last_conv_layer
+            self.layer_name = last_conv_layer.name
+            print(f"✅ Auto-detected last conv layer: {self.layer_name}")
+        else:
+            # Fallback to specified layer_name
+            try:
+                target_layer = self.model.get_layer(self.layer_name)
+                print(f"✅ Using specified layer: {self.layer_name}")
+            except ValueError:
+                raise ValueError(
+                    f"Could not find convolutional layer. "
+                    f"Tried auto-detection and specified layer '{self.layer_name}'. "
+                    f"Available layers: {[l.name for l in self.model.layers]}"
+                )
         
         grad_model = tf.keras.Model(
             inputs=[self.model.inputs],
@@ -172,7 +199,7 @@ def generate_gradcam_for_image(
     img_array: np.ndarray,
     original_image: Image.Image,
     class_idx: int,
-    layer_name: str = 'Conv_1'
+    layer_name: str = None  # Auto-detect if None
 ) -> dict:
     """
     Convenience function to generate complete Grad-CAM visualization.
@@ -190,8 +217,8 @@ def generate_gradcam_for_image(
             - 'colored_heatmap': Colored heatmap image
             - 'overlay': Heatmap overlaid on original image
     """
-    # Create Grad-CAM generator
-    gradcam = GradCAMGenerator(model, layer_name)
+    # Create Grad-CAM generator (auto-detects layer if layer_name is None)
+    gradcam = GradCAMGenerator(model, layer_name or 'auto')
     
     # Generate heatmap
     heatmap = gradcam.generate_gradcam(img_array, class_idx)

@@ -13,7 +13,10 @@ import numpy as np
 from pathlib import Path
 
 # Configuration
-MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+# Try .keras models first, then fallback to .h5
+MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
+HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
+LEGACY_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
 OUTPUT_PATH = Path("models/cam_weights.json")
 
 def find_classification_layer(model):
@@ -48,16 +51,31 @@ def extract_cam_weights():
     print("Phase 2.1: Extracting CAM Weights")
     print("=" * 60)
     
-    # Check if model exists
-    if not MODEL_PATH.exists():
-        print(f"ERROR: Model file not found at: {MODEL_PATH}")
-        print(f"Please place mobilenetv2_rf.h5 in the models/ directory")
+    # Try to find a model file (prefer .keras, fallback to .h5)
+    model_path = None
+    model_name = None
+    
+    if MOBILENETV2_MODEL_PATH.exists():
+        model_path = MOBILENETV2_MODEL_PATH
+        model_name = "MobileNetV2"
+    elif HERBASCAN_MODEL_PATH.exists():
+        model_path = HERBASCAN_MODEL_PATH
+        model_name = "HerbaScan"
+    elif LEGACY_MODEL_PATH.exists():
+        model_path = LEGACY_MODEL_PATH
+        model_name = "Legacy (mobilenetv2_rf)"
+    else:
+        print(f"ERROR: No model file found!")
+        print(f"Please place one of the following in the models/ directory:")
+        print(f"  - {MOBILENETV2_MODEL_PATH}")
+        print(f"  - {HERBASCAN_MODEL_PATH}")
+        print(f"  - {LEGACY_MODEL_PATH}")
         return False
     
     try:
         # Load model
-        print(f"\n[1/4] Loading model from: {MODEL_PATH}")
-        model = tf.keras.models.load_model(str(MODEL_PATH))
+        print(f"\n[1/4] Loading {model_name} model from: {model_path}")
+        model = tf.keras.models.load_model(str(model_path))
         print("      Model loaded successfully!")
         
         # Find classification layer

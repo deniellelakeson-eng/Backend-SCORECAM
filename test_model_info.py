@@ -6,17 +6,37 @@ Run this to verify model configuration before deployment.
 import tensorflow as tf
 from pathlib import Path
 
-MODEL_PATH = Path("models/mobilenetv2_rf.h5")
+# Try .keras models first, fallback to .h5
+MOBILENETV2_PATH = Path("models/MobileNetV2_model.keras")
+HERBASCAN_PATH = Path("models/herbascan_model.keras")
+LEGACY_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
 
 try:
     print("=" * 60)
     print("🔍 HerbaScan Model Information")
     print("=" * 60)
     
-    # Load model
-    print(f"\n📂 Loading model from: {MODEL_PATH}")
-    model = tf.keras.models.load_model(str(MODEL_PATH))
-    print("✅ Model loaded successfully!\n")
+    # Try to load .keras models first
+    model = None
+    model_path = None
+    
+    if MOBILENETV2_PATH.exists():
+        print(f"\n📂 Loading MobileNetV2 model from: {MOBILENETV2_PATH}")
+        model = tf.keras.models.load_model(str(MOBILENETV2_PATH))
+        model_path = MOBILENETV2_PATH
+        print("✅ MobileNetV2 model loaded successfully!\n")
+    elif HERBASCAN_PATH.exists():
+        print(f"\n📂 Loading HerbaScan model from: {HERBASCAN_PATH}")
+        model = tf.keras.models.load_model(str(HERBASCAN_PATH))
+        model_path = HERBASCAN_PATH
+        print("✅ HerbaScan model loaded successfully!\n")
+    elif LEGACY_MODEL_PATH.exists():
+        print(f"\n📂 Loading legacy model from: {LEGACY_MODEL_PATH}")
+        model = tf.keras.models.load_model(str(LEGACY_MODEL_PATH))
+        model_path = LEGACY_MODEL_PATH
+        print("✅ Legacy model loaded successfully!\n")
+    else:
+        raise FileNotFoundError("No model files found. Please ensure at least one .keras or .h5 model exists in models/")
     
     # Basic model info
     print("📊 Model Summary:")
@@ -54,6 +74,9 @@ try:
 
 except Exception as e:
     print(f"\n❌ Error: {e}")
-    print("\n💡 Make sure mobilenetv2_rf.h5 is in the models/ directory")
+    print("\n💡 Make sure at least one model file exists:")
+    print("   - models/MobileNetV2_model.keras")
+    print("   - models/herbascan_model.keras")
+    print("   - models/mobilenetv2_rf.h5 (legacy)")
 
 
