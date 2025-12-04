@@ -893,7 +893,7 @@ HOST=0.0.0.0
 
 ### Method 4: curl (Command Line)
 
-```bash
+   ```bash
 # Local
 curl http://localhost:8000/health
 curl -X POST http://localhost:8000/identify -F "file=@image.jpg"
