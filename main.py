@@ -243,9 +243,17 @@ async def identify_plant(file: UploadFile = File(...)):
         # Get top 3 predictions
         top_3_indices = np.argsort(best_predictions)[-3:][::-1]
         
+        # Helper function to get plant name from index
+        # labels.json format: {"PlantName": index}
+        def get_plant_name_from_index(idx):
+            for plant_name, plant_idx in labels.items():
+                if plant_idx == idx:
+                    return plant_name
+            return f"Plant_{idx}"
+        
         # Get predicted class (highest confidence)
         predicted_class_idx = best_class_idx
-        predicted_class_name = labels.get(str(predicted_class_idx), f"Plant_{predicted_class_idx}")
+        predicted_class_name = get_plant_name_from_index(predicted_class_idx)
         confidence = best_confidence
         
         # Generate Grad-CAM using the best model (auto-detects last conv layer)
@@ -263,14 +271,26 @@ async def identify_plant(file: UploadFile = File(...)):
         overlay_img.save(buffered, format="PNG")
         gradcam_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
-        # Prepare all predictions
+        # Prepare all predictions (format for frontend)
         all_predictions = []
+        predictions = []  # Frontend expects 'predictions' key
         for idx in top_3_indices:
+            plant_name = get_plant_name_from_index(int(idx))
+            pred_data = {
+                "label": plant_name,
+                "plantName": plant_name,  # UI expects 'plantName'
+                "scientificName": plant_name,  # Add mapping if available
+                "class_index": int(idx),
+                "index": int(idx),
+                "confidence": float(best_predictions[idx]),
+                "isDOHApproved": False  # Add lookup logic later if needed
+            }
             all_predictions.append({
-                "class": labels.get(str(idx), f"Plant_{idx}"),
+                "class": plant_name,
                 "class_index": int(idx),
                 "confidence": float(best_predictions[idx])
             })
+            predictions.append(pred_data)  # Frontend format
         
         # Calculate processing time
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
@@ -280,7 +300,8 @@ async def identify_plant(file: UploadFile = File(...)):
             "plant_name": predicted_class_name,
             "scientific_name": predicted_class_name,  # Add mapping if available
             "confidence": confidence,
-            "all_predictions": all_predictions,
+            "predictions": predictions,  # Frontend expects this key
+            "all_predictions": all_predictions,  # Keep for backward compatibility
             "gradcam_image": gradcam_base64,
             "method": "grad-cam",
             "model_used": model_name_used,
