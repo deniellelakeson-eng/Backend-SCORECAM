@@ -269,7 +269,7 @@ async def identify_plant(file: UploadFile = File(...)):
             all_predictions.append({
                 "class": labels.get(str(idx), f"Plant_{idx}"),
                 "class_index": int(idx),
-                "confidence": float(predictions[idx])
+                "confidence": float(best_predictions[idx])
             })
         
         # Calculate processing time

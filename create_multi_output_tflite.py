@@ -14,10 +14,21 @@ from pathlib import Path
 
 # Configuration
 # Try .keras models first, then fallback to .h5
-MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
-HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
-LEGACY_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
-OUTPUT_PATH = Path("models/mobilenetv2_multi_output.tflite")
+# Handle both running from backend/ directory and project root
+_script_dir = Path(__file__).parent
+_backend_models_dir = _script_dir / "models"
+_root_models_dir = _script_dir.parent / "backend" / "models"
+
+# Try backend/models first (when run from backend/), then root/backend/models (when run from root)
+if _backend_models_dir.exists():
+    models_dir = _backend_models_dir
+else:
+    models_dir = _root_models_dir
+
+MOBILENETV2_MODEL_PATH = models_dir / "MobileNetV2_model.keras"
+HERBASCAN_MODEL_PATH = models_dir / "herbascan_model.keras"
+MOBILENETV2_OUTPUT_PATH = models_dir / "mobilenetv2_multi_output.tflite"
+HERBASCAN_OUTPUT_PATH = models_dir / "herbascan_multi_output.tflite"
 
 def find_last_conv_layer(model):
     """Find the last convolutional layer before global pooling/dense layers."""
@@ -33,9 +44,24 @@ def find_last_conv_layer(model):
             try:
                 if hasattr(layer, 'output_shape'):
                     output_shape = layer.output_shape
+                    # Convert to tuple if it's a TensorShape
+                    if hasattr(output_shape, 'as_list'):
+                        output_shape = tuple(output_shape.as_list())
+                    elif isinstance(output_shape, list):
+                        output_shape = tuple(output_shape)
+                    # If already a tuple, keep it as is
                 elif hasattr(layer, 'output'):
                     if hasattr(layer.output, 'shape'):
-                        output_shape = tuple(layer.output.shape.as_list())
+                        shape = layer.output.shape
+                        # Handle TensorShape object vs tuple
+                        if hasattr(shape, 'as_list'):
+                            # TensorShape object - convert to tuple
+                            output_shape = tuple(shape.as_list())
+                        elif isinstance(shape, (list, tuple)):
+                            # Already a tuple/list - use as is
+                            output_shape = tuple(shape) if isinstance(shape, list) else shape
+                        else:
+                            output_shape = None
                     else:
                         output_shape = None
                 else:
@@ -87,11 +113,53 @@ def create_multi_output_model(model, conv_layer_name):
     # This is critical for Keras 3 compatibility
     print("      Building model for TFLite conversion...")
     dummy_input = tf.zeros((1, 224, 224, 3))  # Match your input shape
-    _ = multi_output_model(dummy_input)
+    test_outputs = multi_output_model(dummy_input)
     
     # Print output info for debugging
-    print(f"      Model Output 0 (conv): {multi_output_model.output[0].shape}")
-    print(f"      Model Output 1 (predictions): {multi_output_model.output[1].shape}")
+    # Use the actual outputs from the test run to get shapes
+    try:
+        if isinstance(test_outputs, (list, tuple)) and len(test_outputs) >= 2:
+            # Get shapes from actual output tensors
+            # Handle both TensorShape and tuple shapes
+            shape0 = test_outputs[0].shape
+            shape1 = test_outputs[1].shape
+            
+            if hasattr(shape0, 'as_list'):
+                output0_shape = tuple(shape0.as_list())
+            elif isinstance(shape0, (list, tuple)):
+                output0_shape = tuple(shape0) if isinstance(shape0, list) else shape0
+            else:
+                output0_shape = shape0
+                
+            if hasattr(shape1, 'as_list'):
+                output1_shape = tuple(shape1.as_list())
+            elif isinstance(shape1, (list, tuple)):
+                output1_shape = tuple(shape1) if isinstance(shape1, list) else shape1
+            else:
+                output1_shape = shape1
+                
+            print(f"      Model Output 0 (conv): {output0_shape}")
+            print(f"      Model Output 1 (predictions): {output1_shape}")
+        else:
+            # Fallback: try to get from model.output property
+            outputs = multi_output_model.output
+            if isinstance(outputs, (list, tuple)) and len(outputs) >= 2:
+                output0 = outputs[0]
+                output1 = outputs[1]
+                if hasattr(output0, 'shape'):
+                    output0_shape = output0.shape
+                    if hasattr(output0_shape, 'as_list'):
+                        output0_shape = tuple(output0_shape.as_list())
+                    print(f"      Model Output 0 (conv): {output0_shape}")
+                if hasattr(output1, 'shape'):
+                    output1_shape = output1.shape
+                    if hasattr(output1_shape, 'as_list'):
+                        output1_shape = tuple(output1_shape.as_list())
+                    print(f"      Model Output 1 (predictions): {output1_shape}")
+    except Exception as e:
+        print(f"      ⚠️  Could not get output shapes: {e}")
+        print(f"      Test outputs type: {type(test_outputs)}")
+        # Continue anyway - the model should still work
     
     return multi_output_model
 
@@ -416,33 +484,8 @@ def verify_tflite_model(tflite_path):
         traceback.print_exc()
         return False
 
-def create_multi_output_tflite():
-    """Main function to create multi-output TFLite model."""
-    print("=" * 60)
-    print("Phase 2.2: Creating Multi-Output TFLite Model")
-    print("=" * 60)
-    
-    # Try to find a model file (prefer .keras, fallback to .h5)
-    model_path = None
-    model_name = None
-    
-    if MOBILENETV2_MODEL_PATH.exists():
-        model_path = MOBILENETV2_MODEL_PATH
-        model_name = "MobileNetV2"
-    elif HERBASCAN_MODEL_PATH.exists():
-        model_path = HERBASCAN_MODEL_PATH
-        model_name = "HerbaScan"
-    elif LEGACY_MODEL_PATH.exists():
-        model_path = LEGACY_MODEL_PATH
-        model_name = "Legacy (mobilenetv2_rf)"
-    else:
-        print(f"ERROR: No model file found!")
-        print(f"Please place one of the following in the models/ directory:")
-        print(f"  - {MOBILENETV2_MODEL_PATH}")
-        print(f"  - {HERBASCAN_MODEL_PATH}")
-        print(f"  - {LEGACY_MODEL_PATH}")
-        return False
-    
+def create_multi_output_tflite_for_model(model_path, model_name, output_path):
+    """Create multi-output TFLite model from a single Keras model."""
     try:
         # Load model
         print(f"\n[1/5] Loading {model_name} model from: {model_path}")
@@ -464,8 +507,35 @@ def create_multi_output_tflite():
         try:
             multi_output_model = create_multi_output_model(model, conv_layer_name)
             print("      ✅ Multi-output model created!")
-            print(f"      Output 0 (features) shape: {multi_output_model.output[0].shape}")
-            print(f"      Output 1 (predictions) shape: {multi_output_model.output[1].shape}")
+            
+            # Handle both list and tuple outputs - use outputs property (list of tensors)
+            if hasattr(multi_output_model, 'outputs') and len(multi_output_model.outputs) >= 2:
+                # Use outputs property which is a list of output tensors
+                shape0 = multi_output_model.outputs[0].shape
+                shape1 = multi_output_model.outputs[1].shape
+                
+                # Handle both TensorShape and tuple
+                if hasattr(shape0, 'as_list'):
+                    output0_shape = tuple(shape0.as_list())
+                elif isinstance(shape0, (list, tuple)):
+                    output0_shape = tuple(shape0) if isinstance(shape0, list) else shape0
+                else:
+                    output0_shape = shape0
+                    
+                if hasattr(shape1, 'as_list'):
+                    output1_shape = tuple(shape1.as_list())
+                elif isinstance(shape1, (list, tuple)):
+                    output1_shape = tuple(shape1) if isinstance(shape1, list) else shape1
+                else:
+                    output1_shape = shape1
+                    
+                print(f"      Output 0 (features) shape: {output0_shape}")
+                print(f"      Output 1 (predictions) shape: {output1_shape}")
+            else:
+                print(f"      ⚠️  Could not access output shapes via outputs property")
+                print(f"      Has outputs attr: {hasattr(multi_output_model, 'outputs')}")
+                if hasattr(multi_output_model, 'outputs'):
+                    print(f"      Outputs length: {len(multi_output_model.outputs)}")
             
             # Verify both outputs are accessible
             if len(multi_output_model.outputs) != 2:
@@ -489,13 +559,13 @@ def create_multi_output_tflite():
         
         # Convert to TFLite
         print(f"\n[4/5] Converting to TFLite...")
-        success = convert_to_tflite(multi_output_model, OUTPUT_PATH)
+        success = convert_to_tflite(multi_output_model, output_path)
         if not success:
             return False
         
         # Verify
         print(f"\n[5/5] Verifying TFLite model...")
-        verification_success = verify_tflite_model(OUTPUT_PATH)
+        verification_success = verify_tflite_model(output_path)
         if not verification_success:
             print(f"\n      ⚠️  WARNING: Model verification failed!")
             print(f"      The model may not have both outputs as expected.")
@@ -503,22 +573,84 @@ def create_multi_output_tflite():
             # Don't return False here - let user decide if model is usable
         
         print("\n" + "=" * 60)
-        print("SUCCESS: Multi-output TFLite model created!")
+        print(f"SUCCESS: {model_name} multi-output TFLite model created!")
         print("=" * 60)
-        print(f"  Output: {OUTPUT_PATH}")
+        print(f"  Output: {output_path}")
         print(f"  Feature maps shape: {conv_output_shape}")
         print(f"  Predictions shape: {model.output_shape}")
-        print("\nNext step: Copy files to Flutter assets/ folder")
-        print("  1. Copy cam_weights.json to assets/models/")
-        print("  2. Copy mobilenetv2_multi_output.tflite to assets/models/")
-        print("  3. Update pubspec.yaml")
         
         return True
         
     except Exception as e:
-        print(f"\nERROR: {str(e)}")
+        print(f"\nERROR processing {model_name}: {str(e)}")
         import traceback
         traceback.print_exc()
+        return False
+
+def create_multi_output_tflite():
+    """Main function to create both multi-output TFLite models."""
+    print("=" * 60)
+    print("Phase 2.2: Creating Multi-Output TFLite Models")
+    print("Creating BOTH MobileNetV2 and HerbaScan multi-output models")
+    print("=" * 60)
+    
+    results = []
+    
+    # Process MobileNetV2 model
+    if MOBILENETV2_MODEL_PATH.exists():
+        print("\n" + "=" * 60)
+        print("Processing MobileNetV2 Model")
+        print("=" * 60)
+        success = create_multi_output_tflite_for_model(
+            MOBILENETV2_MODEL_PATH,
+            "MobileNetV2",
+            MOBILENETV2_OUTPUT_PATH
+        )
+        results.append(("MobileNetV2", success))
+    else:
+        print(f"\n⚠️  MobileNetV2 model not found at: {MOBILENETV2_MODEL_PATH}")
+        print("   Skipping MobileNetV2 multi-output model creation")
+        results.append(("MobileNetV2", False))
+    
+    # Process HerbaScan model
+    if HERBASCAN_MODEL_PATH.exists():
+        print("\n" + "=" * 60)
+        print("Processing HerbaScan Model")
+        print("=" * 60)
+        success = create_multi_output_tflite_for_model(
+            HERBASCAN_MODEL_PATH,
+            "HerbaScan",
+            HERBASCAN_OUTPUT_PATH
+        )
+        results.append(("HerbaScan", success))
+    else:
+        print(f"\n⚠️  HerbaScan model not found at: {HERBASCAN_MODEL_PATH}")
+        print("   Skipping HerbaScan multi-output model creation")
+        results.append(("HerbaScan", False))
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("SUMMARY: Multi-Output TFLite Model Creation")
+    print("=" * 60)
+    for model_name, success in results:
+        status = "✅ SUCCESS" if success else "❌ FAILED/SKIPPED"
+        print(f"  {model_name}: {status}")
+    
+    # Check if at least one succeeded
+    if any(success for _, success in results):
+        print("\nNext steps:")
+        print("  1. Copy cam_weights.json to assets/models/ (if not already done)")
+        print("  2. Copy multi-output TFLite models to assets/models/:")
+        if results[0][1]:  # MobileNetV2 succeeded
+            print(f"     - {MOBILENETV2_OUTPUT_PATH.name}")
+        if results[1][1]:  # HerbaScan succeeded
+            print(f"     - {HERBASCAN_OUTPUT_PATH.name}")
+        print("  3. Update Flutter services to use multi-output models")
+        print("  4. Update pubspec.yaml (if needed)")
+        return True
+    else:
+        print("\n❌ ERROR: No models were successfully created!")
+        print(f"Please ensure at least one .keras model exists in: {models_dir}")
         return False
 
 if __name__ == "__main__":

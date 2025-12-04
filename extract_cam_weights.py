@@ -14,10 +14,21 @@ from pathlib import Path
 
 # Configuration
 # Try .keras models first, then fallback to .h5
-MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
-HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
-LEGACY_MODEL_PATH = Path("models/mobilenetv2_rf.h5")
-OUTPUT_PATH = Path("models/cam_weights.json")
+# Handle both running from backend/ directory and project root
+_script_dir = Path(__file__).parent
+_backend_models_dir = _script_dir / "models"
+_root_models_dir = _script_dir.parent / "backend" / "models"
+
+# Try backend/models first (when run from backend/), then root/backend/models (when run from root)
+if _backend_models_dir.exists():
+    models_dir = _backend_models_dir
+else:
+    models_dir = _root_models_dir
+
+MOBILENETV2_MODEL_PATH = models_dir / "MobileNetV2_model.keras"
+HERBASCAN_MODEL_PATH = models_dir / "herbascan_model.keras"
+MOBILENETV2_OUTPUT_PATH = models_dir / "mobilenetv2_cam_weights.json"
+HERBASCAN_OUTPUT_PATH = models_dir / "herbascan_cam_weights.json"
 
 def find_classification_layer(model):
     """Find the final dense/classification layer."""
@@ -45,33 +56,8 @@ def find_classification_layer(model):
     
     raise ValueError("Could not find classification layer!")
 
-def extract_cam_weights():
-    """Extract CAM weights from the model."""
-    print("=" * 60)
-    print("Phase 2.1: Extracting CAM Weights")
-    print("=" * 60)
-    
-    # Try to find a model file (prefer .keras, fallback to .h5)
-    model_path = None
-    model_name = None
-    
-    if MOBILENETV2_MODEL_PATH.exists():
-        model_path = MOBILENETV2_MODEL_PATH
-        model_name = "MobileNetV2"
-    elif HERBASCAN_MODEL_PATH.exists():
-        model_path = HERBASCAN_MODEL_PATH
-        model_name = "HerbaScan"
-    elif LEGACY_MODEL_PATH.exists():
-        model_path = LEGACY_MODEL_PATH
-        model_name = "Legacy (mobilenetv2_rf)"
-    else:
-        print(f"ERROR: No model file found!")
-        print(f"Please place one of the following in the models/ directory:")
-        print(f"  - {MOBILENETV2_MODEL_PATH}")
-        print(f"  - {HERBASCAN_MODEL_PATH}")
-        print(f"  - {LEGACY_MODEL_PATH}")
-        return False
-    
+def extract_cam_weights_for_model(model_path, model_name, output_path):
+    """Extract CAM weights from a single model."""
     try:
         # Load model
         print(f"\n[1/4] Loading {model_name} model from: {model_path}")
@@ -112,32 +98,90 @@ def extract_cam_weights():
             'layer_type': type(classification_layer).__name__,
             'bias': bias,
             'num_classes': weights.shape[1],
-            'feature_dim': weights.shape[0]
+            'feature_dim': weights.shape[0],
+            'model_name': model_name
         }
         
         # Save to JSON
-        with open(OUTPUT_PATH, 'w') as f:
+        with open(output_path, 'w') as f:
             json.dump(output_data, f, indent=2)
         
         # Calculate file size
-        file_size = OUTPUT_PATH.stat().st_size / 1024  # KB
-        print(f"      Saved to: {OUTPUT_PATH}")
+        file_size = output_path.stat().st_size / 1024  # KB
+        print(f"      Saved to: {output_path}")
         print(f"      File size: {file_size:.2f} KB")
         
         print("\n" + "=" * 60)
-        print("SUCCESS: CAM weights extracted!")
+        print(f"SUCCESS: {model_name} CAM weights extracted!")
         print("=" * 60)
         print(f"  Layer: {classification_layer.name}")
         print(f"  Shape: {weights.shape[0]} features x {weights.shape[1]} classes")
-        print(f"  Output: {OUTPUT_PATH}")
-        print("\nNext step: Run create_multi_output_tflite.py")
+        print(f"  Output: {output_path}")
         
         return True
         
     except Exception as e:
-        print(f"\nERROR: {str(e)}")
+        print(f"\nERROR processing {model_name}: {str(e)}")
         import traceback
         traceback.print_exc()
+        return False
+
+def extract_cam_weights():
+    """Extract CAM weights from both models."""
+    print("=" * 60)
+    print("Phase 2.1: Extracting CAM Weights")
+    print("Extracting from BOTH MobileNetV2 and HerbaScan models")
+    print("=" * 60)
+    
+    results = []
+    
+    # Process MobileNetV2 model
+    if MOBILENETV2_MODEL_PATH.exists():
+        print("\n" + "=" * 60)
+        print("Processing MobileNetV2 Model")
+        print("=" * 60)
+        success = extract_cam_weights_for_model(
+            MOBILENETV2_MODEL_PATH,
+            "MobileNetV2",
+            MOBILENETV2_OUTPUT_PATH
+        )
+        results.append(("MobileNetV2", success))
+    else:
+        print(f"\n⚠️  MobileNetV2 model not found at: {MOBILENETV2_MODEL_PATH}")
+        print("   Skipping MobileNetV2 CAM weights extraction")
+        results.append(("MobileNetV2", False))
+    
+    # Process HerbaScan model
+    if HERBASCAN_MODEL_PATH.exists():
+        print("\n" + "=" * 60)
+        print("Processing HerbaScan Model")
+        print("=" * 60)
+        success = extract_cam_weights_for_model(
+            HERBASCAN_MODEL_PATH,
+            "HerbaScan",
+            HERBASCAN_OUTPUT_PATH
+        )
+        results.append(("HerbaScan", success))
+    else:
+        print(f"\n⚠️  HerbaScan model not found at: {HERBASCAN_MODEL_PATH}")
+        print("   Skipping HerbaScan CAM weights extraction")
+        results.append(("HerbaScan", False))
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("SUMMARY: CAM Weights Extraction")
+    print("=" * 60)
+    for model_name, success in results:
+        status = "✅ SUCCESS" if success else "❌ FAILED/SKIPPED"
+        print(f"  {model_name}: {status}")
+    
+    # Check if at least one succeeded
+    if any(success for _, success in results):
+        print("\nNext step: Run create_multi_output_tflite.py")
+        return True
+    else:
+        print("\n❌ ERROR: No models were successfully processed!")
+        print(f"Please ensure at least one .keras model exists in: {models_dir}")
         return False
 
 if __name__ == "__main__":
