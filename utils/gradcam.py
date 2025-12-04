@@ -74,9 +74,21 @@ class GradCAMGenerator:
                     f"Available layers: {[l.name for l in self.model.layers]}"
                 )
         
+        # Handle model inputs - could be a list or single tensor
+        if isinstance(self.model.inputs, list):
+            model_inputs = self.model.inputs
+        else:
+            model_inputs = [self.model.inputs]
+        
+        # Handle model outputs - could be a list or single tensor
+        if isinstance(self.model.output, list):
+            model_output = self.model.output[0]  # Take first output if multiple
+        else:
+            model_output = self.model.output
+        
         grad_model = tf.keras.Model(
-            inputs=[self.model.inputs],
-            outputs=[target_layer.output, self.model.output]
+            inputs=model_inputs,
+            outputs=[target_layer.output, model_output]
         )
         
         return grad_model
@@ -97,8 +109,24 @@ class GradCAMGenerator:
         
         # Compute gradients
         with tf.GradientTape() as tape:
-            conv_outputs, predictions = self.grad_model(img_tensor)
-            loss = predictions[:, class_idx]
+            outputs = self.grad_model(img_tensor)
+            # Handle both single output and multiple outputs
+            if isinstance(outputs, (list, tuple)):
+                conv_outputs, predictions = outputs[0], outputs[1]
+            else:
+                # If single output, assume it's the predictions (fallback)
+                conv_outputs = outputs
+                predictions = outputs
+            
+            # Handle predictions shape - could be [batch, classes] or [classes]
+            if len(predictions.shape) == 1:
+                # 1D array: [classes]
+                loss = predictions[class_idx]
+            elif len(predictions.shape) == 2:
+                # 2D array: [batch, classes]
+                loss = predictions[:, class_idx]
+            else:
+                raise ValueError(f"Unexpected predictions shape: {predictions.shape}")
         
         # Get gradients of the loss with respect to the conv layer output
         grads = tape.gradient(loss, conv_outputs)
