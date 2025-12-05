@@ -86,8 +86,8 @@ async def load_models():
         else:
             print(f"⚠️  Labels file not found at: {LABELS_PATH}")
             print("📝 Please place your labels.json file in the models/ directory")
-            # Create dummy labels (40 classes for HerbaScan)
-            labels = {str(i): f"Plant_{i}" for i in range(40)}
+            # Create dummy labels (42 classes for HerbaScan)
+            labels = {str(i): f"Plant_{i}" for i in range(42)}
         
     except Exception as e:
         print(f"❌ Error loading models: {str(e)}")

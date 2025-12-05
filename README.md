@@ -1,8 +1,8 @@
 # HerbaScan Backend API
 
 **Last Updated**: December 2025  
-**Backend Version**: 0.7.6  
-**Flutter App Version**: v0.7.6
+**Backend Version**: 0.8.3  
+**Flutter App Version**: v0.8.3
 
 FastAPI server for true Grad-CAM (Gradient-weighted Class Activation Mapping) computation using TensorFlow.
 
@@ -10,7 +10,7 @@ This backend provides online GradCAM computation for the HerbaScan mobile app's 
 
 ## 📋 Setup Instructions
 
-> **Note**: This backend is part of the HerbaScan Hybrid XAI Explanation System. The Flutter app (v0.5.8) uses this backend for online GradCAM computation, while offline explanations use pre-written JSON data and offline CAM heatmaps.
+> **Note**: This backend is part of the HerbaScan Hybrid XAI Explanation System. The Flutter app (v0.8.3) uses this backend for online GradCAM computation, while offline explanations use pre-written JSON data (42 plants) and offline CAM heatmaps.
 
 ### 1. Place Model Files
 
@@ -33,12 +33,12 @@ backend/models/
 **labels.json format example (backend format - index:name):**
 ```json
 {
-  "0": "10Coleus scutellarioides(CS)",
-  "1": "11Phyllanthus niruri(PN)",
-  "2": "12Corchorus olitorius(CO)",
-  "3": "13Momordica charantia (MC)",
+  "0": "Adelfa",
+  "1": "Akapulko",
+  "2": "Alagaw",
+  "3": "AloeVera",
   ...
-  "39": "9Centella asiatica(CA)"
+  "41": "YerbaBuena"
 }
 ```
 
@@ -54,7 +54,7 @@ backend/models/
 ```
 
 **Important:** The frontend uses `assets/models/class_indices.json` with format `name:index`, while the backend uses `backend/models/labels.json` with format `index:name`. Both formats are supported.
-*(Your dataset has 40-42 Philippine medicinal plant species)*
+*(Your dataset has 42 Philippine medicinal plant species - indices 0-41)*
 
 ---
 
@@ -316,9 +316,9 @@ Phase 2.1: Extracting CAM Weights
       Layer type: Dense
 
 [3/4] Extracting weights...
-      Weight shape: (1280, 40)
+      Weight shape: (1280, 42)
       Weight dtype: float32
-      Bias shape: (40,)
+      Bias shape: (42,)
 
 [4/4] Saving to JSON...
       Saved to: models/cam_weights.json
@@ -328,7 +328,7 @@ Phase 2.1: Extracting CAM Weights
 SUCCESS: CAM weights extracted!
 ============================================================
   Layer: dense_1
-  Shape: 1280 features x 40 classes
+  Shape: 1280 features x 42 classes
   Output: models/cam_weights.json
 
 Next step: Run create_multi_output_tflite.py
@@ -337,12 +337,12 @@ Next step: Run create_multi_output_tflite.py
 **Output file structure:**
 ```json
 {
-  "weights": [[...], [...], ...],  // 2D array: [1280, 40]
-  "shape": [1280, 40],
+  "weights": [[...], [...], ...],  // 2D array: [1280, 42]
+  "shape": [1280, 42],
   "layer_name": "dense_1",
   "layer_type": "Dense",
-  "bias": [...],  // 1D array: [40]
-  "num_classes": 40,
+  "bias": [...],  // 1D array: [42]
+  "num_classes": 42,
   "feature_dim": 1280
 }
 ```
@@ -392,7 +392,7 @@ python create_multi_output_tflite.py
 3. **Creates multi-output model:**
    - Creates a new Keras model with 2 outputs:
      - Output 0: Feature maps from last conv layer (shape: `[1, 7, 7, 1280]`)
-     - Output 1: Predictions from original model (shape: `[1, 40]`)
+     - Output 1: Predictions from original model (shape: `[1, 42]`)
    - Tests the model with dummy input to ensure both outputs work
 
 4. **Converts to TFLite:**
@@ -410,7 +410,7 @@ python create_multi_output_tflite.py
    - Checks it has exactly 2 outputs
    - Verifies output shapes:
      - One 4D output (feature maps: `[1, 7, 7, 1280]`)
-     - One 2D output (predictions: `[1, 40]`)
+     - One 2D output (predictions: `[1, 42]`)
    - Handles output order swapping (TFLite may swap outputs)
 
 **Expected output:**
@@ -422,7 +422,7 @@ Phase 2.2: Creating Multi-Output TFLite Model
 [1/5] Loading model from: models/MobileNetV2_model.keras (or models/mobilenetv2_rf.h5)
       Model loaded successfully!
       Input shape: (None, 224, 224, 3)
-      Output shape: (None, 40)
+      Output shape: (None, 42)
 
 [2/5] Finding last convolutional layer...
       Scanning model layers...
@@ -435,10 +435,10 @@ Phase 2.2: Creating Multi-Output TFLite Model
 [3/5] Creating multi-output model...
       Building model for TFLite conversion...
       Model Output 0 (conv): (1, 7, 7, 1280)
-      Model Output 1 (predictions): (1, 40)
+      Model Output 1 (predictions): (1, 42)
       ✅ Multi-output model created!
       Output 0 (features) shape: (1, 7, 7, 1280)
-      Output 1 (predictions) shape: (1, 40)
+      Output 1 (predictions) shape: (1, 42)
       Testing multi-output model with dummy input...
       ✅ Model test successful - both outputs accessible
 
@@ -454,16 +454,16 @@ Phase 2.2: Creating Multi-Output TFLite Model
       Input shape: [1 224 224 3]
       Number of outputs: 2
       Output 0 shape: [1 7 7 1280] (dimensions: 4)
-      Output 1 shape: [1 40] (dimensions: 2)
+      Output 1 shape: [1 42] (dimensions: 2)
       ✅ Output 0 is feature maps: [1 7 7 1280]
-      ✅ Output 1 is predictions: [1 40]
+      ✅ Output 1 is predictions: [1 42]
 
 ============================================================
 SUCCESS: Multi-output TFLite model created!
 ============================================================
   Output: models/mobilenetv2_multi_output.tflite
   Feature maps shape: (None, 7, 7, 1280)
-  Predictions shape: (None, 40)
+  Predictions shape: (None, 42)
 
 Next step: Copy files to Flutter assets/ folder
   1. Copy cam_weights.json to assets/models/
@@ -825,7 +825,7 @@ curl https://YOUR-RAILWAY-URL.railway.app/health
   "status": "healthy",
   "model_loaded": true,
   "labels_loaded": true,
-  "num_classes": 40
+  "num_classes": 42
 }
 ```
 
@@ -848,7 +848,7 @@ Or use Postman (see Testing section below).
 
 Once deployed, update your Flutter app with the Railway URL:
 
-> **Note**: The Flutter app (v0.5.8) includes a Hybrid XAI Explanation System that uses this backend for online GradCAM heatmaps. The app automatically falls back to offline CAM and offline JSON explanations when internet is unavailable. See the main `README.md` for details on the XAI system.
+> **Note**: The Flutter app (v0.8.3) includes a Hybrid XAI Explanation System that uses this backend for online GradCAM heatmaps. The app automatically falls back to offline CAM and offline JSON explanations (42 plants) when internet is unavailable. See the main `README.md` for details on the XAI system.
 
 ```dart
 // lib/core/services/online_gradcam_service.dart
