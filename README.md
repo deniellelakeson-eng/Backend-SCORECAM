@@ -1,6 +1,6 @@
 # HerbaScan Backend API
 
-**Last Updated**: December 2025  
+**Last Updated**: December 11 2025  
 **Backend Version**: 0.8.5  
 **Flutter App Version**: v0.8.5
 
