@@ -1,8 +1,10 @@
 # HerbaScan Backend API
 
 **Last Updated**: December 2025  
-**Backend Version**: 0.8.3  
-**Flutter App Version**: v0.8.3
+**Backend Version**: 0.8.4  
+**Flutter App Version**: v0.8.4
+
+**Model Standardization**: MobileNetV2 Only (Phase 34) - HerbaScan custom model deprecated
 
 FastAPI server for true Grad-CAM (Gradient-weighted Class Activation Mapping) computation using TensorFlow.
 
@@ -18,17 +20,15 @@ Place the following files in the `models/` directory:
 
 ```
 backend/models/
-├── MobileNetV2_model.keras    ← MobileNetV2 architecture model (.keras format)
-├── herbascan_model.keras      ← Custom HerbaScan architecture model (.keras format)
+├── MobileNetV2_model.keras    ← MobileNetV2 architecture model (.keras format) - REQUIRED
 └── labels.json                ← Plant class labels (optional, for backward compatibility)
 ```
 
 **Where to get these files:**
-- `MobileNetV2_model.keras`: MobileNetV2 architecture model (`.keras` format)
-- `herbascan_model.keras`: Custom HerbaScan architecture model (`.keras` format)
+- `MobileNetV2_model.keras`: MobileNetV2 architecture model (`.keras` format) - **REQUIRED**
 - `labels.json`: Class labels in JSON format (optional, backend can work without it)
 
-**Note:** The backend now supports **dual model architecture**. It will load both models and automatically select the result with highest confidence. At least one model must be present.
+**Note:** As of Phase 34 (Model Standardization), the backend uses **only MobileNetV2 model** for prediction consistency between offline CAM and online GradCAM. The HerbaScan custom model (`herbascan_model.keras`) is deprecated.
 
 **labels.json format example (backend format - index:name):**
 ```json
@@ -66,18 +66,16 @@ When you have a new trained model or updated labels:
 
 #### Step 1: Update Model Files
 
-1. **Replace the model files (`.keras` format):**
+1. **Replace the model file (`.keras` format):**
    ```bash
-   # Backup old models (optional)
+   # Backup old model (optional)
    cp backend/models/MobileNetV2_model.keras backend/models/MobileNetV2_model.keras.backup
-   cp backend/models/herbascan_model.keras backend/models/herbascan_model.keras.backup
    
-   # Copy new models
+   # Copy new model (MobileNetV2 only - HerbaScan deprecated)
    cp /path/to/your/new_mobilenetv2_model.keras backend/models/MobileNetV2_model.keras
-   cp /path/to/your/new_herbascan_model.keras backend/models/herbascan_model.keras
    ```
 
-   **Note:** You can update just one model if needed. The backend will use whichever models are available.
+   **Note:** Only MobileNetV2 model is required. HerbaScan custom model is deprecated as of Phase 34 (Model Standardization).
 
 2. **Update labels.json (if classes changed):**
    ```bash
@@ -106,12 +104,11 @@ When you have a new trained model or updated labels:
 venv\Scripts\activate  # Windows
 # source venv/bin/activate  # Mac/Linux
 
-# Test model loading (try both models)
+# Test model loading (MobileNetV2 only)
 python -c "import tensorflow as tf; from pathlib import Path; \
 m1 = Path('models/MobileNetV2_model.keras'); \
-m2 = Path('models/herbascan_model.keras'); \
 if m1.exists(): model = tf.keras.models.load_model(str(m1)); print('MobileNetV2 loaded!'); print(f'Input: {model.input_shape}'); print(f'Output: {model.output_shape}'); \
-if m2.exists(): model = tf.keras.models.load_model(str(m2)); print('HerbaScan loaded!'); print(f'Input: {model.input_shape}'); print(f'Output: {model.output_shape}')"
+else: print('ERROR: MobileNetV2_model.keras not found!')"
 
 # Run server and test
 python main.py
@@ -144,23 +141,24 @@ cd backend
 
 # Step 1: Extract CAM weights
 python extract_cam_weights.py
-# Output: backend/models/cam_weights.json
+# Output: backend/models/mobilenetv2_cam_weights.json
 
 # Step 2: Create multi-output TFLite model
 python create_multi_output_tflite.py
 # Output: backend/models/mobilenetv2_multi_output.tflite
 ```
 
-**Note:** For dual model support, you may need to run extraction for both models and merge the results, or use the primary model (MobileNetV2) for CAM extraction.
+**Note:** Only MobileNetV2 model extraction is required. HerbaScan model is deprecated.
 
 #### Step 4: Update Flutter Assets & Redeploy Backend
 
 **Copy generated files to Flutter assets:**
 ```bash
-cp backend/models/cam_weights.json assets/models/
+cp backend/models/mobilenetv2_cam_weights.json assets/models/
 cp backend/models/mobilenetv2_multi_output.tflite assets/models/
 # Note: Frontend uses class_indices.json (name:index format), not labels.json
 # If you need to update frontend labels, edit assets/models/class_indices.json directly
+# Note: HerbaScan model files are deprecated - only MobileNetV2 is required
 ```
 
 **Update `pubspec.yaml` to include:**
@@ -172,7 +170,7 @@ flutter:
     # - MobileNetV2_model.tflite
     # - herbascan_model.tflite
     # - class_indices.json
-    # - cam_weights.json
+    # - mobilenetv2_cam_weights.json
     # - mobilenetv2_multi_output.tflite (if using multi-output model)
 ```
 
@@ -189,22 +187,25 @@ If deployed to Railway, update the deployment:
 
 **Option A: Using Git (if models are committed)**
 ```bash
-git add backend/models/MobileNetV2_model.keras backend/models/herbascan_model.keras backend/models/labels.json
-git commit -m "Update models to v2.0"
+git add backend/models/MobileNetV2_model.keras backend/models/labels.json
+git commit -m "Update MobileNetV2 model to v2.0"
 git push
 # Railway will automatically redeploy
+# Note: HerbaScan model is deprecated - only MobileNetV2 is required
 ```
 
 **Option B: Using Railway Volumes (for large models)**
 1. Go to Railway dashboard
 2. Navigate to your project → Volumes
-3. Upload new model files via Railway CLI or dashboard
+3. Upload MobileNetV2 model file via Railway CLI or dashboard
 4. Restart the service
+5. **Note:** Only MobileNetV2 model is required (HerbaScan deprecated)
 
 **Option C: Manual Upload**
 1. SSH into Railway service (if available)
-2. Upload model files directly
+2. Upload MobileNetV2 model file directly
 3. Restart service
+4. **Note:** Only MobileNetV2 model is required (HerbaScan deprecated)
 
 ---
 
@@ -236,13 +237,13 @@ Phase 2 prepares your trained Keras model for offline use in the Flutter app by:
 
 Before running the scripts, ensure you have:
 
-1. **Model files in place:**
+1. **Model file in place:**
    ```bash
-   # Verify models exist (at least one required)
+   # Verify MobileNetV2 model exists (required)
    ls -lh backend/models/MobileNetV2_model.keras
-   ls -lh backend/models/herbascan_model.keras
    # Or if using .h5 format for extraction scripts:
    ls -lh backend/models/mobilenetv2_rf.h5
+   # Note: HerbaScan model is deprecated - only MobileNetV2 is required
    ```
 
 2. **Python environment activated:**
@@ -280,12 +281,9 @@ python extract_cam_weights.py
 **What the script does:**
 
 1. **Loads the Keras model:**
-   - Reads `models/mobilenetv2_rf.h5` (or `models/MobileNetV2_model.keras` if script is updated)
+   - Reads `models/MobileNetV2_model.keras` (or `models/mobilenetv2_rf.h5` if using legacy format)
    - Verifies the model can be loaded
-   - **Note:** To use with `.keras` models, update `MODEL_PATH` in `extract_cam_weights.py`:
-     ```python
-     MODEL_PATH = Path("models/MobileNetV2_model.keras")  # or herbascan_model.keras
-     ```
+   - **Note:** Script processes MobileNetV2 model only (HerbaScan model is deprecated)
    - `tf.keras.models.load_model()` supports both `.keras` and `.h5` formats
 
 2. **Finds the classification layer:**
@@ -299,16 +297,17 @@ python extract_cam_weights.py
    - Converts to NumPy arrays
 
 4. **Saves to JSON:**
-   - Creates `models/cam_weights.json`
+   - Creates `models/mobilenetv2_cam_weights.json`
    - Includes: weights, bias, shape, layer name, layer type, metadata
 
 **Expected output:**
 ```
 ============================================================
 Phase 2.1: Extracting CAM Weights
+Extracting from MobileNetV2 model (HerbaScan model deprecated)
 ============================================================
 
-[1/4] Loading model from: models/MobileNetV2_model.keras (or models/mobilenetv2_rf.h5)
+[1/4] Loading MobileNetV2 model from: models/MobileNetV2_model.keras
       Model loaded successfully!
 
 [2/4] Finding classification layer...
@@ -321,15 +320,15 @@ Phase 2.1: Extracting CAM Weights
       Bias shape: (42,)
 
 [4/4] Saving to JSON...
-      Saved to: models/cam_weights.json
+      Saved to: models/mobilenetv2_cam_weights.json
       File size: 65.23 KB
 
 ============================================================
-SUCCESS: CAM weights extracted!
+SUCCESS: MobileNetV2 CAM weights extracted!
 ============================================================
   Layer: dense_1
   Shape: 1280 features x 42 classes
-  Output: models/cam_weights.json
+  Output: models/mobilenetv2_cam_weights.json
 
 Next step: Run create_multi_output_tflite.py
 ```
@@ -343,18 +342,19 @@ Next step: Run create_multi_output_tflite.py
   "layer_type": "Dense",
   "bias": [...],  // 1D array: [42]
   "num_classes": 42,
-  "feature_dim": 1280
+  "feature_dim": 1280,
+  "model_name": "MobileNetV2"
 }
 ```
 
 **Verification:**
 ```bash
 # Check file exists and has reasonable size
-ls -lh backend/models/cam_weights.json
+ls -lh backend/models/mobilenetv2_cam_weights.json
 # Should be ~65 KB
 
 # Verify JSON is valid
-python -c "import json; json.load(open('backend/models/cam_weights.json'))"
+python -c "import json; json.load(open('backend/models/mobilenetv2_cam_weights.json'))"
 ```
 
 ---
@@ -375,12 +375,9 @@ python create_multi_output_tflite.py
 **What the script does:**
 
 1. **Loads the Keras model:**
-   - Reads `models/mobilenetv2_rf.h5` (or `models/MobileNetV2_model.keras` if script is updated)
+   - Reads `models/MobileNetV2_model.keras` (or `models/mobilenetv2_rf.h5` if using legacy format)
    - Verifies the model can be loaded
-   - **Note:** To use with `.keras` models, update `MODEL_PATH` in `create_multi_output_tflite.py`:
-     ```python
-     MODEL_PATH = Path("models/MobileNetV2_model.keras")  # or herbascan_model.keras
-     ```
+   - **Note:** Script processes MobileNetV2 model only (HerbaScan model is deprecated)
    - `tf.keras.models.load_model()` supports both `.keras` and `.h5` formats
 
 2. **Finds the last convolutional layer:**
@@ -417,9 +414,10 @@ python create_multi_output_tflite.py
 ```
 ============================================================
 Phase 2.2: Creating Multi-Output TFLite Model
+Creating MobileNetV2 multi-output model (HerbaScan model deprecated)
 ============================================================
 
-[1/5] Loading model from: models/MobileNetV2_model.keras (or models/mobilenetv2_rf.h5)
+[1/5] Loading MobileNetV2 model from: models/MobileNetV2_model.keras
       Model loaded successfully!
       Input shape: (None, 224, 224, 3)
       Output shape: (None, 42)
@@ -500,19 +498,21 @@ for i, detail in enumerate(output_details):
 
 **Copy generated files:**
 ```bash
-# From project root
-cp backend/models/cam_weights.json assets/models/
+# From project root (MobileNetV2 only)
+cp backend/models/mobilenetv2_cam_weights.json assets/models/
 cp backend/models/mobilenetv2_multi_output.tflite assets/models/
-cp backend/models/labels.json assets/models/
+cp backend/models/labels.json assets/models/  # Optional
+# Note: HerbaScan model files are deprecated - only MobileNetV2 is required
 ```
 
 **Update `pubspec.yaml`:**
 ```yaml
 flutter:
   assets:
-    - assets/models/cam_weights.json
+    - assets/models/mobilenetv2_cam_weights.json
     - assets/models/mobilenetv2_multi_output.tflite
-    - assets/models/labels.json
+    - assets/models/labels.json  # Optional
+# Note: HerbaScan model files are deprecated - only MobileNetV2 is required
 ```
 
 **Rebuild Flutter app:**
@@ -941,13 +941,12 @@ Create a `.env` file (optional):
 
 ```env
 MOBILENETV2_MODEL_PATH=models/MobileNetV2_model.keras
-HERBASCAN_MODEL_PATH=models/herbascan_model.keras
 LABELS_PATH=models/labels.json
 PORT=8000
 HOST=0.0.0.0
 ```
 
-**Note:** The backend automatically loads both models if available. Environment variables are optional - defaults are set in `main.py`.
+**Note:** The backend uses only MobileNetV2 model (HerbaScan deprecated). Environment variables are optional - defaults are set in `main.py`.
 
 ## 🧪 Testing with Postman
 
@@ -1040,7 +1039,7 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/identify -F "file=@image.jpg"
   - Use Railway volumes for large models
   - Upload to cloud storage (S3, GCS) and download on startup
   - Include in Docker image if < 100MB
-- **Dual Model Support:** Backend supports both `MobileNetV2_model.keras` and `herbascan_model.keras`. At least one must be present.
+- **Model Standardization (Phase 34):** Backend uses only `MobileNetV2_model.keras`. HerbaScan custom model is deprecated for prediction consistency between offline CAM and online GradCAM.
 
 ### TensorFlow Compatibility
 

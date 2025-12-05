@@ -588,10 +588,10 @@ def create_multi_output_tflite_for_model(model_path, model_name, output_path):
         return False
 
 def create_multi_output_tflite():
-    """Main function to create both multi-output TFLite models."""
+    """Main function to create MobileNetV2 multi-output TFLite model (HerbaScan deprecated)."""
     print("=" * 60)
-    print("Phase 2.2: Creating Multi-Output TFLite Models")
-    print("Creating BOTH MobileNetV2 and HerbaScan multi-output models")
+    print("Phase 2.2: Creating Multi-Output TFLite Model")
+    print("Creating MobileNetV2 multi-output model (HerbaScan model deprecated)")
     print("=" * 60)
     
     results = []
@@ -612,21 +612,22 @@ def create_multi_output_tflite():
         print("   Skipping MobileNetV2 multi-output model creation")
         results.append(("MobileNetV2", False))
     
-    # Process HerbaScan model
+    # Process HerbaScan model (DEPRECATED - kept for backward compatibility)
     if HERBASCAN_MODEL_PATH.exists():
         print("\n" + "=" * 60)
-        print("Processing HerbaScan Model")
+        print("Processing HerbaScan Model (DEPRECATED)")
         print("=" * 60)
+        print("⚠️  WARNING: HerbaScan model is deprecated. Use MobileNetV2 only.")
         success = create_multi_output_tflite_for_model(
             HERBASCAN_MODEL_PATH,
             "HerbaScan",
             HERBASCAN_OUTPUT_PATH
         )
-        results.append(("HerbaScan", success))
+        results.append(("HerbaScan (Deprecated)", success))
     else:
         print(f"\n⚠️  HerbaScan model not found at: {HERBASCAN_MODEL_PATH}")
-        print("   Skipping HerbaScan multi-output model creation")
-        results.append(("HerbaScan", False))
+        print("   HerbaScan model is deprecated - MobileNetV2 is the only supported model")
+        results.append(("HerbaScan (Deprecated)", False))
     
     # Summary
     print("\n" + "=" * 60)
@@ -636,21 +637,22 @@ def create_multi_output_tflite():
         status = "✅ SUCCESS" if success else "❌ FAILED/SKIPPED"
         print(f"  {model_name}: {status}")
     
-    # Check if at least one succeeded
-    if any(success for _, success in results):
+    # Check if MobileNetV2 succeeded (required)
+    mobilenetv2_success = results[0][1] if results and results[0][0] == "MobileNetV2" else False
+    
+    if mobilenetv2_success:
+        print("\n✅ MobileNetV2 multi-output TFLite model created successfully!")
         print("\nNext steps:")
-        print("  1. Copy cam_weights.json to assets/models/ (if not already done)")
-        print("  2. Copy multi-output TFLite models to assets/models/:")
-        if results[0][1]:  # MobileNetV2 succeeded
-            print(f"     - {MOBILENETV2_OUTPUT_PATH.name}")
-        if results[1][1]:  # HerbaScan succeeded
-            print(f"     - {HERBASCAN_OUTPUT_PATH.name}")
-        print("  3. Update Flutter services to use multi-output models")
+        print("  1. Copy mobilenetv2_cam_weights.json to assets/models/")
+        print(f"  2. Copy {MOBILENETV2_OUTPUT_PATH.name} to assets/models/")
+        print("  3. Update Flutter services to use MobileNetV2 multi-output model")
         print("  4. Update pubspec.yaml (if needed)")
+        print("\nNote: HerbaScan model is deprecated - only MobileNetV2 is required.")
         return True
     else:
-        print("\n❌ ERROR: No models were successfully created!")
-        print(f"Please ensure at least one .keras model exists in: {models_dir}")
+        print("\n❌ ERROR: MobileNetV2 model creation failed!")
+        print(f"Please ensure MobileNetV2_model.keras exists in: {models_dir}")
+        print("Note: HerbaScan model is deprecated - MobileNetV2 is required.")
         return False
 
 if __name__ == "__main__":

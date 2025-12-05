@@ -1,10 +1,12 @@
 """
-Phase 2.1: Extract CAM Weights from Keras Model
+Phase 2.1: Extract CAM Weights from MobileNetV2 Model
 
 This script extracts the weights from the final dense/classification layer
-of your trained model. These weights are needed for offline CAM computation.
+of your trained MobileNetV2 model. These weights are needed for offline CAM computation.
 
-Output: cam_weights.json (shape: [1280, 40] for 40 plant classes)
+Output: mobilenetv2_cam_weights.json (shape: [1280, 42] for 42 plant classes)
+
+Note: HerbaScan custom model is deprecated - only MobileNetV2 is supported.
 """
 
 import tensorflow as tf
@@ -127,10 +129,10 @@ def extract_cam_weights_for_model(model_path, model_name, output_path):
         return False
 
 def extract_cam_weights():
-    """Extract CAM weights from both models."""
+    """Extract CAM weights from MobileNetV2 model (HerbaScan deprecated)."""
     print("=" * 60)
     print("Phase 2.1: Extracting CAM Weights")
-    print("Extracting from BOTH MobileNetV2 and HerbaScan models")
+    print("Extracting from MobileNetV2 model (HerbaScan model deprecated)")
     print("=" * 60)
     
     results = []
@@ -151,21 +153,22 @@ def extract_cam_weights():
         print("   Skipping MobileNetV2 CAM weights extraction")
         results.append(("MobileNetV2", False))
     
-    # Process HerbaScan model
+    # Process HerbaScan model (DEPRECATED - kept for backward compatibility)
     if HERBASCAN_MODEL_PATH.exists():
         print("\n" + "=" * 60)
-        print("Processing HerbaScan Model")
+        print("Processing HerbaScan Model (DEPRECATED)")
         print("=" * 60)
+        print("⚠️  WARNING: HerbaScan model is deprecated. Use MobileNetV2 only.")
         success = extract_cam_weights_for_model(
             HERBASCAN_MODEL_PATH,
             "HerbaScan",
             HERBASCAN_OUTPUT_PATH
         )
-        results.append(("HerbaScan", success))
+        results.append(("HerbaScan (Deprecated)", success))
     else:
         print(f"\n⚠️  HerbaScan model not found at: {HERBASCAN_MODEL_PATH}")
-        print("   Skipping HerbaScan CAM weights extraction")
-        results.append(("HerbaScan", False))
+        print("   HerbaScan model is deprecated - MobileNetV2 is the only supported model")
+        results.append(("HerbaScan (Deprecated)", False))
     
     # Summary
     print("\n" + "=" * 60)
@@ -175,13 +178,17 @@ def extract_cam_weights():
         status = "✅ SUCCESS" if success else "❌ FAILED/SKIPPED"
         print(f"  {model_name}: {status}")
     
-    # Check if at least one succeeded
-    if any(success for _, success in results):
-        print("\nNext step: Run create_multi_output_tflite.py")
+    # Check if MobileNetV2 succeeded (required)
+    mobilenetv2_success = results[0][1] if results and results[0][0] == "MobileNetV2" else False
+    
+    if mobilenetv2_success:
+        print("\n✅ MobileNetV2 CAM weights extracted successfully!")
+        print("Next step: Run create_multi_output_tflite.py")
         return True
     else:
-        print("\n❌ ERROR: No models were successfully processed!")
-        print(f"Please ensure at least one .keras model exists in: {models_dir}")
+        print("\n❌ ERROR: MobileNetV2 model processing failed!")
+        print(f"Please ensure MobileNetV2_model.keras exists in: {models_dir}")
+        print("Note: HerbaScan model is deprecated - MobileNetV2 is required.")
         return False
 
 if __name__ == "__main__":

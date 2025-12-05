@@ -37,45 +37,36 @@ app.add_middleware(
 
 # Global variables for models (loaded once at startup)
 mobilenetv2_model = None
-herbascan_model = None
 labels = None
 MOBILENETV2_MODEL_PATH = Path("models/MobileNetV2_model.keras")
-HERBASCAN_MODEL_PATH = Path("models/herbascan_model.keras")
 LABELS_PATH = Path("models/labels.json")
 
 
 @app.on_event("startup")
 async def load_models():
-    """Load both Keras models and labels on server startup."""
-    global mobilenetv2_model, herbascan_model, labels
+    """Load MobileNetV2 Keras model and labels on server startup."""
+    global mobilenetv2_model, labels
     
     try:
-        print("🔄 Loading Keras models...")
+        print("🔄 Loading MobileNetV2 Keras model...")
         
-        # Load MobileNetV2 model
+        # Load MobileNetV2 model (ONLY MODEL - HerbaScan deprecated)
         if MOBILENETV2_MODEL_PATH.exists():
             try:
                 mobilenetv2_model = tf.keras.models.load_model(str(MOBILENETV2_MODEL_PATH))
                 print(f"✅ MobileNetV2 model loaded successfully from {MOBILENETV2_MODEL_PATH}")
             except Exception as e:
-                print(f"⚠️  Error loading MobileNetV2 model: {str(e)}")
-                print("📝 Continuing with herbascan_model only")
+                print(f"❌ Error loading MobileNetV2 model: {str(e)}")
+                print("❌ Server will start, but /identify endpoint will not work")
+                return
         else:
-            print(f"⚠️  MobileNetV2 model file not found at: {MOBILENETV2_MODEL_PATH}")
+            print(f"❌ MobileNetV2 model file not found at: {MOBILENETV2_MODEL_PATH}")
+            print("❌ Please ensure MobileNetV2_model.keras exists in models/ directory")
+            return
         
-        # Load HerbaScan model
-        if HERBASCAN_MODEL_PATH.exists():
-            try:
-                herbascan_model = tf.keras.models.load_model(str(HERBASCAN_MODEL_PATH))
-                print(f"✅ HerbaScan model loaded successfully from {HERBASCAN_MODEL_PATH}")
-            except Exception as e:
-                print(f"⚠️  Error loading HerbaScan model: {str(e)}")
-        else:
-            print(f"⚠️  HerbaScan model file not found at: {HERBASCAN_MODEL_PATH}")
-        
-        # Check if at least one model is loaded
-        if mobilenetv2_model is None and herbascan_model is None:
-            print("❌ No models loaded! Please ensure at least one .keras model exists in models/ directory")
+        # Check if model is loaded
+        if mobilenetv2_model is None:
+            print("❌ MobileNetV2 model failed to load! Please check the model file.")
             return
         
         # Load labels
@@ -102,8 +93,7 @@ async def root():
         "version": "1.0.0",
         "status": "running",
         "mobilenetv2_loaded": mobilenetv2_model is not None,
-        "herbascan_loaded": herbascan_model is not None,
-        "models_loaded": (mobilenetv2_model is not None) or (herbascan_model is not None),
+        "models_loaded": mobilenetv2_model is not None,
         "endpoints": {
             "health": "/health",
             "identify": "/identify (POST)",
@@ -118,8 +108,7 @@ async def health_check():
     return {
         "status": "healthy",
         "mobilenetv2_loaded": mobilenetv2_model is not None,
-        "herbascan_loaded": herbascan_model is not None,
-        "models_loaded": (mobilenetv2_model is not None) or (herbascan_model is not None),
+        "models_loaded": mobilenetv2_model is not None,
         "labels_loaded": labels is not None,
         "num_classes": len(labels) if labels else 0
     }
@@ -131,11 +120,8 @@ async def test_endpoint():
     return {
         "message": "HerbaScan API is working!",
         "mobilenetv2_status": "loaded" if mobilenetv2_model is not None else "not loaded",
-        "herbascan_status": "loaded" if herbascan_model is not None else "not loaded",
         "mobilenetv2_path": str(MOBILENETV2_MODEL_PATH),
-        "herbascan_path": str(HERBASCAN_MODEL_PATH),
         "mobilenetv2_exists": MOBILENETV2_MODEL_PATH.exists(),
-        "herbascan_exists": HERBASCAN_MODEL_PATH.exists(),
         "labels_count": len(labels) if labels else 0
     }
 
@@ -160,11 +146,11 @@ async def identify_plant(file: UploadFile = File(...)):
     """
     start_time = time.time()
     
-    # Check if at least one model is loaded
-    if mobilenetv2_model is None and herbascan_model is None:
+    # Check if MobileNetV2 model is loaded
+    if mobilenetv2_model is None:
         raise HTTPException(
             status_code=503,
-            detail="No models loaded. Please check server logs."
+            detail="MobileNetV2 model not loaded. Please check server logs."
         )
     
     try:
@@ -189,56 +175,33 @@ async def identify_plant(file: UploadFile = File(...)):
         if original_image.mode != 'RGB':
             original_image = original_image.convert('RGB')
         
-        # Run inference on both models and select the best result
-        best_predictions = None
-        best_model = None
-        best_confidence = -1.0
-        best_class_idx = -1
-        model_name_used = None
-        
-        # Try MobileNetV2 model
-        if mobilenetv2_model is not None:
-            try:
-                preds = mobilenetv2_model.predict(img_array, verbose=0)
-                preds = preds[0]  # Remove batch dimension
-                max_idx = np.argmax(preds)
-                max_conf = float(preds[max_idx])
-                
-                if max_conf > best_confidence:
-                    best_predictions = preds
-                    best_model = mobilenetv2_model
-                    best_confidence = max_conf
-                    best_class_idx = max_idx
-                    model_name_used = "MobileNetV2"
-                    print(f"📊 MobileNetV2 prediction: class {max_idx}, confidence {max_conf:.4f}")
-            except Exception as e:
-                print(f"⚠️  Error running MobileNetV2 inference: {str(e)}")
-        
-        # Try HerbaScan model
-        if herbascan_model is not None:
-            try:
-                preds = herbascan_model.predict(img_array, verbose=0)
-                preds = preds[0]  # Remove batch dimension
-                max_idx = np.argmax(preds)
-                max_conf = float(preds[max_idx])
-                
-                if max_conf > best_confidence:
-                    best_predictions = preds
-                    best_model = herbascan_model
-                    best_confidence = max_conf
-                    best_class_idx = max_idx
-                    model_name_used = "HerbaScan"
-                    print(f"📊 HerbaScan model prediction: class {max_idx}, confidence {max_conf:.4f}")
-            except Exception as e:
-                print(f"⚠️  Error running HerbaScan inference: {str(e)}")
+        # Run inference on MobileNetV2 model (ONLY MODEL - HerbaScan deprecated)
+        try:
+            preds = mobilenetv2_model.predict(img_array, verbose=0)
+            preds = preds[0]  # Remove batch dimension
+            max_idx = np.argmax(preds)
+            max_conf = float(preds[max_idx])
+            
+            best_predictions = preds
+            best_model = mobilenetv2_model
+            best_confidence = max_conf
+            best_class_idx = max_idx
+            model_name_used = "MobileNetV2"
+            print(f"📊 MobileNetV2 prediction: class {max_idx}, confidence {max_conf:.4f}")
+        except Exception as e:
+            print(f"❌ Error running MobileNetV2 inference: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to run inference: {str(e)}"
+            )
         
         if best_predictions is None or best_model is None:
             raise HTTPException(
                 status_code=500,
-                detail="Failed to run inference on any model"
+                detail="Failed to run inference on MobileNetV2 model"
             )
         
-        print(f"✅ Using {model_name_used} model (confidence: {best_confidence:.4f})")
+        print(f"✅ Using MobileNetV2 model (confidence: {best_confidence:.4f})")
         
         # Get top 3 predictions
         top_3_indices = np.argsort(best_predictions)[-3:][::-1]
@@ -325,7 +288,6 @@ if __name__ == "__main__":
     
     print("🌿 Starting HerbaScan Grad-CAM API...")
     print(f"📂 MobileNetV2 model path: {MOBILENETV2_MODEL_PATH}")
-    print(f"📂 HerbaScan model path: {HERBASCAN_MODEL_PATH}")
     print(f"📂 Labels path: {LABELS_PATH}")
     print(f"🌐 Starting on port {port}")
     

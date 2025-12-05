@@ -1,8 +1,10 @@
 # HerbaScan Backend - Quick Start Guide
 
 **Last Updated**: December 2025  
-**Backend Version**: 0.8.3  
-**Flutter App Version**: v0.8.3
+**Backend Version**: 0.8.4  
+**Flutter App Version**: v0.8.4
+
+**Model Standardization**: MobileNetV2 Only (Phase 34) - HerbaScan custom model deprecated
 
 ## ✅ **What's Complete**
 
@@ -26,11 +28,10 @@ Before deploying, make sure you have:
 - ✅ Railway account ([signup here](https://railway.app))
 - ✅ GitHub account
 - ✅ Model files in `backend/models/` directory:
-  - `MobileNetV2_model.keras` (MobileNetV2 architecture model - `.keras` format)
-  - `herbascan_model.keras` (Custom HerbaScan architecture model - `.keras` format)
+  - `MobileNetV2_model.keras` (MobileNetV2 architecture model - `.keras` format) - **REQUIRED**
   - `labels.json` (plant class labels - optional, for backward compatibility)
   
-  **Note:** At least one `.keras` model must be present. The backend will automatically use both models and select the result with highest confidence.
+  **Note:** MobileNetV2 model is required. HerbaScan custom model (`herbascan_model.keras`) is deprecated as of Phase 34 (Model Standardization). The backend uses only MobileNetV2 for prediction consistency between offline CAM and online GradCAM.
 
 ---
 
@@ -128,14 +129,14 @@ When you have a new trained model:
 
 1. **Replace model files (`.keras` format):**
    ```bash
-   # Backup old models (optional)
+   # Backup old model (optional)
    cp backend/models/MobileNetV2_model.keras backend/models/MobileNetV2_model.keras.backup
-   cp backend/models/herbascan_model.keras backend/models/herbascan_model.keras.backup
    
-   # Copy new models
+   # Copy new model (MobileNetV2 only - HerbaScan deprecated)
    cp /path/to/your/new_mobilenetv2_model.keras backend/models/MobileNetV2_model.keras
-   cp /path/to/your/new_herbascan_model.keras backend/models/herbascan_model.keras
    ```
+   
+   **Note:** HerbaScan custom model is deprecated. Only MobileNetV2 model is required.
 
 2. **Update labels (if classes changed):**
    ```bash
@@ -167,10 +168,11 @@ When you have a new trained model:
    python extract_cam_weights.py
    python create_multi_output_tflite.py
    
-   # Copy to Flutter assets
-   cp models/cam_weights.json ../assets/models/
+   # Copy to Flutter assets (MobileNetV2 only)
+   cp models/mobilenetv2_cam_weights.json ../assets/models/
    cp models/mobilenetv2_multi_output.tflite ../assets/models/
    # Note: Frontend uses class_indices.json, not labels.json
+   # Note: HerbaScan model files are deprecated and not needed
    ```
 
 5. **Update Flutter pubspec.yaml:**
@@ -182,7 +184,7 @@ When you have a new trained model:
        # - MobileNetV2_model.tflite
        # - herbascan_model.tflite
        # - class_indices.json
-       # - cam_weights.json
+       # - mobilenetv2_cam_weights.json
    ```
 
 6. **Redeploy to Railway:**
@@ -207,10 +209,10 @@ When you have a new trained model:
 
 ### **Model Not Loading?**
 - Railway logs will show error
-- Verify at least one `.keras` model exists: `MobileNetV2_model.keras` or `herbascan_model.keras`
+- Verify `MobileNetV2_model.keras` exists (required)
 - Check file permissions
 - For large models (>100MB), use Railway volumes or Git LFS
-- Backend supports both models - will use whichever is available
+- **Note:** HerbaScan model is deprecated - only MobileNetV2 is required
 
 ### **API Slow?**
 - First request always slower (cold start: 10-30 seconds)
@@ -292,12 +294,13 @@ Once deployed, you have:
    python extract_cam_weights.py
    # Create multi-output TFLite model
    python create_multi_output_tflite.py
-   # Copy to Flutter assets
-   cp models/cam_weights.json ../assets/models/
+   # Copy to Flutter assets (MobileNetV2 only)
+   cp models/mobilenetv2_cam_weights.json ../assets/models/
    cp models/mobilenetv2_multi_output.tflite ../assets/models/
    ```
    - See `/backend/README.md` → "Phase 2: Model Extraction & Conversion" for detailed steps
    - **Note:** Frontend uses `assets/models/class_indices.json` (name:index format), not `labels.json`
+   - **Note:** HerbaScan model files are deprecated - only MobileNetV2 is required
 
 4. **Monitor Performance:**
    - Check Railway logs for errors
@@ -338,16 +341,17 @@ railway logs
 # Edit extract_cam_weights.py: MODEL_PATH = "models/MobileNetV2_model.keras"
 # Edit create_multi_output_tflite.py: MODEL_PATH = "models/MobileNetV2_model.keras"
 
-# Extract CAM weights
+# Extract CAM weights (MobileNetV2 only)
 python extract_cam_weights.py
 
-# Create TFLite model
+# Create TFLite model (MobileNetV2 only)
 python create_multi_output_tflite.py
 
-# Copy to Flutter assets
-cp models/cam_weights.json ../assets/models/
+# Copy to Flutter assets (MobileNetV2 only)
+cp models/mobilenetv2_cam_weights.json ../assets/models/
 cp models/mobilenetv2_multi_output.tflite ../assets/models/
 # Note: Frontend uses class_indices.json (name:index), not labels.json (index:name)
+# Note: HerbaScan model files are deprecated - only MobileNetV2 is required
 ```
 
 ---
