@@ -1,6 +1,6 @@
 """
 HerbaScan Backend API
-FastAPI server for true Grad-CAM computation using TensorFlow
+FastAPI server for true Score-CAM computation using TensorFlow
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -16,13 +16,13 @@ import os
 from PIL import Image
 from pathlib import Path
 
-from utils.gradcam import generate_gradcam_for_image
+from utils.scorecam import generate_scorecam_for_image
 from utils.preprocessing import preprocess_image, array_to_pil_image
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="HerbaScan Grad-CAM API",
-    description="True gradient-based plant identification with explainable AI",
+    title="HerbaScan Score-CAM API",
+    description="True score-weighted plant identification with explainable AI",
     version="1.0.0"
 )
 
@@ -89,7 +89,7 @@ async def load_models():
 async def root():
     """Root endpoint with API information."""
     return {
-        "service": "HerbaScan Grad-CAM API",
+        "service": "HerbaScan Score-CAM API",
         "version": "1.0.0",
         "status": "running",
         "mobilenetv2_loaded": mobilenetv2_model is not None,
@@ -129,7 +129,7 @@ async def test_endpoint():
 @app.post("/identify")
 async def identify_plant(file: UploadFile = File(...)):
     """
-    Main endpoint: Identify plant and generate Grad-CAM visualization.
+    Main endpoint: Identify plant and generate Score-CAM visualization.
     
     Args:
         file: Uploaded image file (multipart/form-data)
@@ -140,8 +140,8 @@ async def identify_plant(file: UploadFile = File(...)):
             - scientific_name: Scientific name (if available)
             - confidence: Confidence score (0-1)
             - all_predictions: Top 3 predictions with confidence
-            - gradcam_image: Base64-encoded Grad-CAM overlay image
-            - method: "grad-cam"
+            - gradcam_image: Base64-encoded Score-CAM overlay image
+            - method: "score-cam"
             - processing_time_ms: Processing time in milliseconds
     """
     start_time = time.time()
@@ -219,8 +219,8 @@ async def identify_plant(file: UploadFile = File(...)):
         predicted_class_name = get_plant_name_from_index(predicted_class_idx)
         confidence = best_confidence
         
-        # Generate Grad-CAM using the best model (auto-detects last conv layer)
-        gradcam_result = generate_gradcam_for_image(
+        # Generate Score-CAM using the best model (auto-detects last conv layer)
+        scorecam_result = generate_scorecam_for_image(
             model=best_model,
             img_array=img_array,
             original_image=original_image,
@@ -229,10 +229,10 @@ async def identify_plant(file: UploadFile = File(...)):
         )
         
         # Convert overlay image to base64
-        overlay_img = gradcam_result['overlay']
+        overlay_img = scorecam_result['overlay']
         buffered = io.BytesIO()
         overlay_img.save(buffered, format="PNG")
-        gradcam_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        scorecam_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
         # Prepare all predictions (format for frontend)
         all_predictions = []
@@ -265,8 +265,8 @@ async def identify_plant(file: UploadFile = File(...)):
             "confidence": confidence,
             "predictions": predictions,  # Frontend expects this key
             "all_predictions": all_predictions,  # Keep for backward compatibility
-            "gradcam_image": gradcam_base64,
-            "method": "grad-cam",
+            "gradcam_image": scorecam_base64,  # Keep key name for backward compatibility
+            "method": "score-cam",
             "model_used": model_name_used,
             "processing_time_ms": round(processing_time, 2)
         }
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # Read PORT from environment variable (Railway provides this)
     port = int(os.environ.get("PORT", 8000))
     
-    print("🌿 Starting HerbaScan Grad-CAM API...")
+    print("🌿 Starting HerbaScan Score-CAM API...")
     print(f"📂 MobileNetV2 model path: {MOBILENETV2_MODEL_PATH}")
     print(f"📂 Labels path: {LABELS_PATH}")
     print(f"🌐 Starting on port {port}")
