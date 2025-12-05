@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: herbascan-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.10
+    healthCheckPath: /health
+    autoDeploy: true

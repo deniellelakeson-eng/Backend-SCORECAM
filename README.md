@@ -898,6 +898,201 @@ railway logs
 railway run python test_model_info.py
 ```
 
+---
+
+## 🚀 Deployment to Render
+
+### Prerequisites
+
+- ✅ Render account ([signup here](https://render.com))
+- ✅ GitHub account
+- ✅ Model files in `backend/models/` directory
+- ✅ `render.yaml` configuration file (already included)
+
+### Step-by-Step Deployment
+
+#### Step 1: Push Code to GitHub
+
+Ensure your backend code is in a GitHub repository:
+
+```bash
+# If not already done, initialize git and push
+cd backend
+git init
+git add .
+git commit -m "Initial commit: HerbaScan Score-CAM API"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/HerbaScan-Backend-SCORECAM.git
+git push -u origin main
+```
+
+#### Step 2: Deploy to Render
+
+1. **Login to Render:**
+   - Go to [https://render.com](https://render.com)
+   - Click **"Get Started for Free"** or **"Sign In"**
+   - Sign in with your GitHub account
+   - Authorize Render to access your GitHub repositories
+
+2. **Create New Web Service:**
+   - Click **"New +"** → **"Web Service"**
+   - Connect your GitHub account if not already connected
+   - Select your repository: `HerbaScan-Backend-SCORECAM`
+   - Render will auto-detect the `render.yaml` configuration ✅
+
+3. **Configure Service (if needed):**
+   
+   The `render.yaml` file is already configured, but you can verify:
+   - **Name**: `herbascan-backend`
+   - **Runtime**: `Docker` (uses Dockerfile)
+   - **Plan**: `Free` (or upgrade to Starter/Standard for better performance)
+   - **Region**: `Oregon` (or choose closest to your users)
+   - **Auto-Deploy**: `Yes` (deploys on every git push)
+
+4. **Add Environment Variables (Optional):**
+   
+   In Render dashboard → Environment:
+   ```
+   PORT=8000
+   PYTHON_VERSION=3.10
+   ```
+   
+   Note: Render automatically sets `PORT`, but you can set a default.
+
+5. **Add Model Files:**
+   
+   **Important:** Model files are typically too large for GitHub (>100MB). Use one of these methods:
+   
+   **Option A: Git LFS (for models < 100MB)**
+   ```bash
+   # Install Git LFS
+   git lfs install
+   git lfs track "*.keras"
+   git add .gitattributes
+   git add models/MobileNetV2_model.keras
+   git commit -m "Add model files via Git LFS"
+   git push
+   ```
+   
+   **Option B: Render Disk (for large models)**
+   - Render provides persistent disk storage
+   - Upload models via Render dashboard → Disk
+   - Update `MODEL_PATH` in code to point to disk path
+   
+   **Option C: Cloud Storage (S3, GCS)**
+   - Upload models to cloud storage
+   - Download on server startup (modify `main.py` to download on startup)
+
+6. **Deploy:**
+   - Click **"Create Web Service"**
+   - Render will start building (first build takes ~10-15 minutes due to TensorFlow)
+   - Monitor build logs in real-time
+   - Once deployed, you'll get a URL like: `https://herbascan-backend.onrender.com`
+
+#### Step 3: Get Your API URL
+
+1. After deployment completes, Render provides a public URL:
+   ```
+   https://herbascan-backend.onrender.com
+   ```
+   Or custom domain if configured.
+
+2. **Copy this URL** - you'll use it in your Flutter app!
+
+#### Step 4: Test Your Deployed API
+
+**Test 1: Health Check**
+```bash
+curl https://herbascan-backend.onrender.com/health
+```
+
+**Expected response:**
+```json
+{
+  "status": "healthy",
+  "mobilenetv2_loaded": true,
+  "models_loaded": true,
+  "labels_loaded": true,
+  "num_classes": 42
+}
+```
+
+**Test 2: Root Endpoint**
+```bash
+curl https://herbascan-backend.onrender.com/
+```
+
+**Test 3: Plant Identification**
+```bash
+curl -X POST https://herbascan-backend.onrender.com/identify \
+  -F "file=@path/to/your/image.jpg"
+```
+
+#### Step 5: Update Flutter App
+
+Once deployed, update your Flutter app with the Render URL:
+
+```dart
+// lib/core/services/online_scorecam_service.dart
+static const String serverUrl = 'https://herbascan-backend.onrender.com';
+```
+
+---
+
+### Continuous Deployment
+
+Render auto-deploys on every git push (if `autoDeploy: true` in `render.yaml`):
+
+```bash
+# Make changes to code
+# Edit backend/main.py or backend/utils/scorecam.py
+
+# Commit and push
+git add .
+git commit -m "Update Score-CAM layer configuration"
+git push
+
+# Render automatically rebuilds and redeploys ✅
+```
+
+---
+
+### Render Free Tier Notes
+
+**Free Tier Limitations:**
+- Services spin down after 15 minutes of inactivity
+- First request after spin-down takes ~30-60 seconds (cold start)
+- Subsequent requests are fast (~2-4 seconds)
+- 750 hours/month free (enough for development/testing)
+
+**Upgrade to Starter ($7/month) for:**
+- No spin-downs (always-on)
+- Faster cold starts
+- Better performance
+- More resources
+
+---
+
+### Troubleshooting Render Deployment
+
+**Common Issues:**
+
+| Issue | Solution |
+|-------|----------|
+| **Build Failed** | Check Render logs, verify model files committed/uploaded, check Dockerfile |
+| **Model file not found** | Use Git LFS (<100MB) or Render Disk (>100MB) |
+| **Out of memory** | Free tier has 512MB limit - upgrade plan or optimize model |
+| **Slow cold starts** | Normal on free tier (15min spin-down) - upgrade to Starter for always-on |
+| **Docker build timeout** | TensorFlow installation takes time - be patient (10-15 min first build) |
+
+**Quick Fixes:**
+1. Check Render logs for detailed error messages
+2. Verify `render.yaml` syntax is correct
+3. Ensure model files are accessible (Git LFS or Disk)
+4. Check Dockerfile builds successfully locally: `docker build -t herbascan-backend .`
+
+---
+
 ## 📡 API Endpoints
 
 ### `GET /` - Root
